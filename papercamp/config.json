@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "projectName": "sbjectv.shop",
+  "initializedAt": "2026-10-16T11:46:17.075Z",
+  "nextId": {
+    "idea": 2
+  },
+  "desk": {
+    "services": [
+      {
+        "name": "dev",
+        "cmd": "pnpm dev"
+      }
+    ],
+    "checks": [
+      {
+        "name": "Types",
+        "cmd": "pnpm check-types"
+      },
+      {
+        "name": "Lint",
+        "cmd": "pnpm lint",
+        "fixCmd": "pnpm lint:write"
+      },
+      {
+        "name": "Tests",
+        "cmd": "pnpm test"
+      },
+      {
+        "name": "Build",
+        "cmd": "pnpm build"
+      }
+    ]
+  }
+}
