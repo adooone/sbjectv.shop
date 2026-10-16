@@ -91,6 +91,12 @@ sbjectv.shop/
 
 ## Deployment
 
-`apps/web` deploys to Vercel as a static Vite app (`apps/web/vercel.json` rewrites all
-routes to `/`). Set `VITE_API_URL` in the Vercel project settings. `apps/core` runs
-anywhere Bun runs (`pnpm --filter @sbjectv/core start`).
+`apps/web` deploys to Vercel as a static Vite app from the `sbjectv-shop` project on the
+Adoo team (`croco-dendy-projects`), linked to this GitHub repo with root directory `apps/web`:
+
+- Production: https://sbjectv-shop.vercel.app (every push to `main`)
+- Previews: one per branch and PR, e.g. `sbjectv-shop-git-<branch>-croco-dendy-projects.vercel.app`
+
+`apps/web/vercel.json` rewrites all routes to `/` for client-side routing. Set `VITE_API_URL`
+in the Vercel project (Settings → Environment Variables) once the API has a public URL.
+`apps/core` runs anywhere Bun runs (`pnpm --filter @sbjectv/core start`).
