@@ -7,7 +7,9 @@ import { createNoise2D } from 'simplex-noise';
  * rounded rectangles with a 30px stroke. Each ring is sampled into points along
  * its perimeter; every frame each point is pushed along its outward normal by
  * simplex noise that travels along the path, which makes the hand-drawn wobble
- * flow around the ring. A slow per-ring "breathing" scale adds the pulse.
+ * flow around the ring. Each ring is filled as a band whose width also varies
+ * with travelling noise, so the stroke swells and thins like an ink line. A
+ * slow per-ring "breathing" scale adds the pulse.
  */
 
 export type Ring = { x: number; y: number; w: number; h: number; r: number };
@@ -37,6 +39,10 @@ export type RingsOptions = {
   breathSpeed: number;
   /** Distance between sampled points in design px. */
   segment: number;
+  /** Stroke thickness variation (0.35 = ±35% around the design stroke). */
+  thickness: number;
+  /** Wavelength of the thickness variation along the path in design px. */
+  thicknessWavelength: number;
 };
 
 export const DEFAULT_OPTIONS: RingsOptions = {
@@ -47,6 +53,8 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   breath: 0.015,
   breathSpeed: 0.7,
   segment: 4,
+  thickness: 0.35,
+  thicknessWavelength: 260,
 };
 
 type Point = {
@@ -60,6 +68,12 @@ type Point = {
 };
 
 const TAU = Math.PI * 2;
+
+/** Perimeter of a rounded rectangle. */
+export const perimeter = (ring: Ring): number => {
+  const r = Math.max(0, Math.min(ring.r, ring.w / 2, ring.h / 2));
+  return 2 * (ring.w - 2 * r) + 2 * (ring.h - 2 * r) + TAU * r;
+};
 
 /** Samples the outline of a rounded rectangle, clockwise from the top-left arc end. */
 export const roundedRectOutline = (ring: Ring, segment: number): Point[] => {
@@ -128,6 +142,7 @@ export const createRingsRenderer = (
   let height = 0;
   let k = 1;
   let outlines: Point[][] = [];
+  let lengths: number[] = [];
 
   const resize = (w: number, h: number, dpr: number) => {
     width = w;
@@ -139,31 +154,27 @@ export const createRingsRenderer = (
     const sx = w / DESIGN.width;
     const sy = h / DESIGN.height;
     k = Math.min(sx, sy);
-    outlines = RINGS.map((ring) =>
-      roundedRectOutline(
-        {
-          x: ring.x * sx,
-          y: ring.y * sy,
-          w: ring.w * sx,
-          h: ring.h * sy,
-          r: ring.r * k,
-        },
-        Math.max(2, opts.segment * k),
-      ),
+    const scaled = RINGS.map((ring) => ({
+      x: ring.x * sx,
+      y: ring.y * sy,
+      w: ring.w * sx,
+      h: ring.h * sy,
+      r: ring.r * k,
+    }));
+    outlines = scaled.map((ring) =>
+      roundedRectOutline(ring, Math.max(2, opts.segment * k)),
     );
+    lengths = scaled.map(perimeter);
   };
 
   const draw = (time: number) => {
     ctx.clearRect(0, 0, width, height);
-    ctx.lineWidth = Math.max(4, DESIGN.stroke * k);
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#000';
+    ctx.fillStyle = '#000';
 
     const cx = width / 2;
     const cy = height / 2;
     const amp = opts.amplitude * k;
-    const freq = 1 / (opts.wavelength * k);
+    const half = Math.max(2, (DESIGN.stroke * k) / 2);
 
     outlines.forEach((points, i) => {
       // Neighbouring rings flow in opposite directions: even ones clockwise,
@@ -171,20 +182,63 @@ export const createRingsRenderer = (
       const direction = i % 2 === 0 ? 1 : -1;
       const breath =
         1 + opts.breath * Math.sin(time * opts.breathSpeed + i * 0.8);
-      ctx.beginPath();
-      for (let j = 0; j < points.length; j++) {
-        const p = points[j];
+      // The noise is sampled along circles in noise space, so it is periodic in
+      // the arc length and the band closes without a seam. Circle radius sets
+      // the wavelength; rotating the circle over time makes the wobble travel.
+      const length = lengths[i];
+      const r1 = length / (opts.wavelength * k * TAU);
+      const r2 = r1 / 3.1;
+      const r3 = length / (opts.thicknessWavelength * k * TAU);
+      const spin = (direction * time * opts.flow) / r1;
+      const ox = i * 7.3 + time * opts.drift;
+      const oy = i * 3.7;
+      // Outer and inner edges of the band; the band is filled as one polygon
+      // (outer edge forward, inner edge backward).
+      const outer: number[] = [];
+      const inner: number[] = [];
+      for (const p of points) {
+        const theta = (p.s / length) * TAU - spin;
+        const cos = Math.cos(theta);
+        const sin = Math.sin(theta);
         // Two octaves: a fine ripple plus a slower, larger swell for a hand-drawn feel.
-        const u = p.s * freq - time * opts.flow * direction;
-        const v = i * 7.3 + time * opts.drift;
-        const d = amp * (0.55 * noise(u, v) + 0.75 * noise(u / 3.1, v + 40));
-        const x = cx + (p.x + p.nx * d - cx) * breath;
-        const y = cy + (p.y + p.ny * d - cy) * breath;
-        if (j === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        const d =
+          amp *
+          (0.55 * noise(r1 * cos + ox, r1 * sin + oy) +
+            0.75 * noise(r2 * cos + ox + 40, r2 * sin + oy + 40));
+        // Thickness swells slowly along the path and travels with the flow.
+        const theta3 = (p.s / length) * TAU - spin * 0.3;
+        const w =
+          half *
+          (1 +
+            opts.thickness *
+              noise(
+                r3 * Math.cos(theta3) + ox + 90,
+                r3 * Math.sin(theta3) + 90,
+              ));
+        const px = p.x + p.nx * d;
+        const py = p.y + p.ny * d;
+        outer.push(
+          cx + (px + p.nx * w - cx) * breath,
+          cy + (py + p.ny * w - cy) * breath,
+        );
+        inner.push(
+          cx + (px - p.nx * w - cx) * breath,
+          cy + (py - p.ny * w - cy) * breath,
+        );
+      }
+      // Repeat the first point so the band also covers the closing segment.
+      outer.push(outer[0], outer[1]);
+      inner.push(inner[0], inner[1]);
+      ctx.beginPath();
+      ctx.moveTo(outer[0], outer[1]);
+      for (let j = 2; j < outer.length; j += 2) {
+        ctx.lineTo(outer[j], outer[j + 1]);
+      }
+      for (let j = inner.length - 2; j >= 0; j -= 2) {
+        ctx.lineTo(inner[j], inner[j + 1]);
       }
       ctx.closePath();
-      ctx.stroke();
+      ctx.fill();
     });
   };
 
