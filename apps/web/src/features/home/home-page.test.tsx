@@ -1,28 +1,43 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRouter,
+} from '@tanstack/react-router';
 import { render, screen } from '@testing-library/react';
-import { HomePage } from './home-page';
+import { routeTree } from '@/routes/route-tree';
 
-const renderPage = () => {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+const renderHome = async () => {
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: ['/'] }),
   });
-  return render(
-    <QueryClientProvider client={client}>
-      <HomePage />
-    </QueryClientProvider>,
-  );
+  render(<RouterProvider router={router} />);
+  await screen.findByRole('heading', { level: 1 });
 };
 
 describe('HomePage', () => {
-  it('renders the heading', () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => new Promise(() => {})),
+  it('links the four corners to their pages', async () => {
+    await renderHome();
+    expect(screen.getByRole('link', { name: 'ОДЯГ' })).toHaveAttribute(
+      'href',
+      '/odyah',
     );
-    renderPage();
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Hello, sbjectv.',
+    expect(screen.getByRole('link', { name: 'МАНІФЕСТ' })).toHaveAttribute(
+      'href',
+      '/manifest',
     );
-    expect(screen.getByTestId('api-status')).toHaveTextContent('checking');
+    expect(screen.getByRole('link', { name: 'ЕБАУТ' })).toHaveAttribute(
+      'href',
+      '/about',
+    );
+    expect(screen.getByRole('link', { name: 'ФОТОЖУРНАЛ' })).toHaveAttribute(
+      'href',
+      '/photojournal',
+    );
+  });
+
+  it('shows the face in the centre', async () => {
+    await renderHome();
+    expect(screen.getByRole('img', { name: 'жека' })).toBeInTheDocument();
   });
 });

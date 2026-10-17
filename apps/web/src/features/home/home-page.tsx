@@ -1,26 +1,21 @@
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import zheka from '@/assets/zheka.png';
+import { CornerLink } from './corner-link';
+import { HypnoRings } from './hypno-rings';
 
-export const HomePage = () => {
-  const health = useQuery({ queryKey: ['health'], queryFn: api.health });
-
-  return (
-    <section className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-4xl font-bold">Hello, sbjectv.</h1>
-      <p className="text-ink/70">
-        The storefront is empty. Start by adding products in{' '}
-        <code className="font-mono text-sm">apps/core</code> and listing them
-        here.
-      </p>
-      <p className="text-sm" data-testid="api-status">
-        API: {health.isPending && <span>checking…</span>}
-        {health.isError && <span className="text-accent">offline</span>}
-        {health.isSuccess && (
-          <span>
-            {health.data.name} v{health.data.version} is {health.data.status}
-          </span>
-        )}
-      </p>
-    </section>
-  );
-};
+export const HomePage = () => (
+  <main className="home relative h-dvh w-full overflow-hidden bg-paper text-ink">
+    <h1 className="sr-only">sbjectv</h1>
+    <HypnoRings className="absolute inset-0 block h-full w-full" />
+    <img
+      src={zheka}
+      alt="жека"
+      className="animate-face absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 select-none"
+      style={{ width: 'calc(139 * var(--k))' }}
+      draggable={false}
+    />
+    <CornerLink corner="tl" to="/odyah" label="ОДЯГ" />
+    <CornerLink corner="tr" to="/manifest" label="МАНІФЕСТ" />
+    <CornerLink corner="bl" to="/about" label="ЕБАУТ" />
+    <CornerLink corner="br" to="/photojournal" label="ФОТОЖУРНАЛ" />
+  </main>
+);
