@@ -166,13 +166,16 @@ export const createRingsRenderer = (
     const freq = 1 / (opts.wavelength * k);
 
     outlines.forEach((points, i) => {
+      // Neighbouring rings flow in opposite directions: even ones clockwise,
+      // odd ones counter-clockwise.
+      const direction = i % 2 === 0 ? 1 : -1;
       const breath =
         1 + opts.breath * Math.sin(time * opts.breathSpeed + i * 0.8);
       ctx.beginPath();
       for (let j = 0; j < points.length; j++) {
         const p = points[j];
         // Two octaves: a fine ripple plus a slower, larger swell for a hand-drawn feel.
-        const u = p.s * freq - time * opts.flow;
+        const u = p.s * freq - time * opts.flow * direction;
         const v = i * 7.3 + time * opts.drift;
         const d = amp * (0.55 * noise(u, v) + 0.75 * noise(u / 3.1, v + 40));
         const x = cx + (p.x + p.nx * d - cx) * breath;
