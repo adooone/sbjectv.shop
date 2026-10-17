@@ -73,7 +73,7 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   window: true,
   windowRing: 1,
   glitch: true,
-  glitchEvery: [6, 14],
+  glitchEvery: [4, 8],
   glitchDuration: 0.3,
   glitchShift: 6,
 };
@@ -332,7 +332,7 @@ export const createRingsRenderer = (
   };
 
   // Glitch schedule and scratch canvases (created on first use).
-  let glitchAt = 7 + Math.random() * 6;
+  let glitchAt = 4 + Math.random() * 4;
   let glitchUntil = -1;
   let scene: HTMLCanvasElement | null = null;
   let tint: HTMLCanvasElement | null = null;
