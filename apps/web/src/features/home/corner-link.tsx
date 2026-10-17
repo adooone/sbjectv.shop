@@ -97,7 +97,7 @@ export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
         />
       </span>
       <span
-        className="absolute block whitespace-nowrap font-display text-paper leading-none underline-offset-4 group-hover:underline group-focus-visible:underline"
+        className="absolute block whitespace-nowrap font-display font-semibold text-paper leading-none underline-offset-4 group-hover:underline group-focus-visible:underline"
         style={labelStyle}
       >
         {label}
