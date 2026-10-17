@@ -48,10 +48,12 @@ export type RingsOptions = {
   /** Portrait: innermost ring as a fraction of the viewport width / height. */
   portraitInner: { x: number; y: number };
   /**
-   * Landscape: fill everything outside the outer ring with ink, so the rings
-   * sit in a porthole and the corners become black.
+   * Landscape: fill everything outside one ring with ink, so the rings sit in
+   * a window and the corners become black.
    */
   window: boolean;
+  /** Index of the ring that becomes the window edge; rings outside it are not drawn. */
+  windowRing: number;
 };
 
 export const DEFAULT_OPTIONS: RingsOptions = {
@@ -67,6 +69,7 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   minStrokeFraction: 0.032,
   portraitInner: { x: 0.4, y: 0.2 },
   window: true,
+  windowRing: 1,
 };
 
 type Point = {
@@ -216,7 +219,11 @@ export const createRingsRenderer = (
     const cy = height / 2;
     const amp = opts.amplitude * u;
 
+    const windowRing = opts.window && !portrait ? opts.windowRing : -1;
+
     outlines.forEach((points, i) => {
+      // Rings outside the window edge would be ink on ink.
+      if (i < windowRing) return;
       // Neighbouring rings flow in opposite directions: even ones clockwise,
       // odd ones counter-clockwise.
       const direction = i % 2 === 0 ? 1 : -1;
@@ -288,9 +295,9 @@ export const createRingsRenderer = (
       // Repeat the first point so the band also covers the closing segment.
       outer.push(outer[0], outer[1]);
       inner.push(inner[0], inner[1]);
-      if (i === 0 && opts.window && !portrait) {
-        // The outer ring becomes a window: ink from the screen edge down to
-        // the ring's wobbling inner edge (even-odd fill of edge minus hole).
+      if (i === windowRing) {
+        // This ring becomes the window: ink from the screen edge down to the
+        // ring's wobbling inner edge (even-odd fill of edge minus hole).
         ctx.beginPath();
         ctx.rect(0, 0, width, height);
         ctx.moveTo(inner[0], inner[1]);
