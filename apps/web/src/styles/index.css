@@ -34,9 +34,9 @@
   --color-ink: #000000;
   --color-paper: #ffffff;
   --font-sans: "KyivType Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "PT Mono", ui-monospace, monospace;
+  --font-mono: "Tiny5", ui-monospace, monospace;
   /* Navigation labels. */
-  --font-display: "PT Mono", ui-monospace, monospace;
+  --font-display: "Tiny5", ui-monospace, monospace;
 
   --animate-face: face-pulse 6s ease-in-out infinite;
 
