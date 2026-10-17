@@ -19,7 +19,7 @@ const PAGES = [
   ['ОДЯГ', '/odyah'],
   ['МАНІФЕСТ', '/manifest'],
   ['ЕБАУТ', '/about'],
-  ['ФОТОЖУРНАЛ', '/photojournal'],
+  ['ПІКЧІ', '/photojournal'],
 ] as const;
 
 describe('HomePage', () => {
