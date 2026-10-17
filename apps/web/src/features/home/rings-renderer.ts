@@ -50,6 +50,11 @@ export type RingsOptions = {
   window: boolean;
   /** Index of the ring that becomes the window edge; rings outside it are not drawn. */
   windowRing: number;
+  /**
+   * Ink the gap between the first and second ring inside the window, so the
+   * stripes read black / white / black from the edge inward.
+   */
+  inkStripe: boolean;
   /** Periodic glitch: colour channels split apart and a few bands tear. */
   glitch: boolean;
   /** Seconds between glitches, picked at random in this range. */
@@ -72,6 +77,7 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   thicknessWavelength: 260,
   window: true,
   windowRing: 1,
+  inkStripe: true,
   glitch: true,
   glitchEvery: [2, 6],
   glitchDuration: 0.3,
@@ -230,6 +236,8 @@ export const createRingsRenderer = (
     const amp = opts.amplitude * u;
 
     const windowRing = opts.window ? opts.windowRing : -1;
+    // Outer and inner edges per ring, kept for the stripe fill below.
+    const edges: { outer: number[]; inner: number[] }[] = [];
 
     outlines.forEach((points, i) => {
       // Rings outside the window edge would be ink on ink.
@@ -305,6 +313,7 @@ export const createRingsRenderer = (
       // Repeat the first point so the band also covers the closing segment.
       outer.push(outer[0], outer[1]);
       inner.push(inner[0], inner[1]);
+      edges[i] = { outer, inner };
       if (i === windowRing) {
         // This ring becomes the window: ink from the screen edge down to the
         // ring's wobbling inner edge (even-odd fill of edge minus hole).
@@ -329,6 +338,25 @@ export const createRingsRenderer = (
       target.closePath();
       target.fill();
     });
+
+    // Black stripe: from the outer edge of the first ring inside the window
+    // to the inner edge of the next one (even-odd fill of the two outlines).
+    const a = edges[windowRing + 1];
+    const b = edges[windowRing + 2];
+    if (opts.inkStripe && a && b) {
+      target.beginPath();
+      target.moveTo(a.outer[0], a.outer[1]);
+      for (let j = 2; j < a.outer.length; j += 2) {
+        target.lineTo(a.outer[j], a.outer[j + 1]);
+      }
+      target.closePath();
+      target.moveTo(b.inner[0], b.inner[1]);
+      for (let j = 2; j < b.inner.length; j += 2) {
+        target.lineTo(b.inner[j], b.inner[j + 1]);
+      }
+      target.closePath();
+      target.fill('evenodd');
+    }
   };
 
   // Glitch schedule and scratch canvases (created on first use).
