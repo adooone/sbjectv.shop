@@ -12,5 +12,5 @@ export const NAV_LINKS: readonly NavLink[] = [
   { to: '/odyah', label: 'ОДЯГ', corner: 'tl' },
   { to: '/manifest', label: 'МАНІФЕСТ', corner: 'tr' },
   { to: '/about', label: 'ЕБАУТ', corner: 'bl' },
-  { to: '/photojournal', label: 'ФОТОЖУРНАЛ', corner: 'br' },
+  { to: '/photojournal', label: 'ФОТО', corner: 'br' },
 ];

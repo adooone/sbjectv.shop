@@ -12,4 +12,4 @@ const page = <const TPath extends string>(path: TPath, title: string) =>
 export const odyahRoute = page('/odyah', 'Одяг');
 export const manifestRoute = page('/manifest', 'Маніфест');
 export const aboutRoute = page('/about', 'Ебаут');
-export const photojournalRoute = page('/photojournal', 'Фотожурнал');
+export const photojournalRoute = page('/photojournal', 'Фото');

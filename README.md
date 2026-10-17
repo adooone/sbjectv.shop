@@ -96,7 +96,10 @@ Adoo team (`croco-dendy-projects`), linked to this GitHub repo with root directo
 
 - Production: https://sbjectv.how (every push to `main`). `www.sbjectv.how` redirects to it;
   `sbjectv-shop.vercel.app` is the default Vercel alias for the same deployment.
-- Previews: one per branch and PR, e.g. `sbjectv-shop-git-<branch>-croco-dendy-projects.vercel.app`
+- Preview: https://preview.sbjectv.how always shows the `preview` branch. Feature work is
+  merged into `preview` first, reviewed there, then `preview` is merged into `main`.
+- Every other branch and PR also gets its own `sbjectv-shop-git-<branch>-…vercel.app` URL
+  (behind Vercel login).
 
 `apps/web/vercel.json` rewrites all routes to `/` for client-side routing. Set `VITE_API_URL`
 in the Vercel project (Settings → Environment Variables) once the API has a public URL.
