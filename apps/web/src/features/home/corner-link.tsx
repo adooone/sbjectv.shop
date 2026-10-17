@@ -83,12 +83,12 @@ export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
         <img
           src={triangle}
           alt=""
-          className="absolute block"
+          className="absolute block invert"
           style={{ left: '6.7%', top: 0, width: '86.6%', height: '75%' }}
         />
       </span>
       <span
-        className="absolute block whitespace-nowrap font-mono text-ink leading-none underline-offset-4 group-hover:underline group-focus-visible:underline"
+        className="absolute block whitespace-nowrap font-mono text-paper leading-none underline-offset-4 group-hover:underline group-focus-visible:underline"
         style={labelStyle}
       >
         {label}
