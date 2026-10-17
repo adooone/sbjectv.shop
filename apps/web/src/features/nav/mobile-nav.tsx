@@ -15,7 +15,7 @@ export const MobileNav = () => (
   >
     <InkEdge className="block h-7 w-full" />
     <div
-      className="flex items-center justify-center gap-2 bg-paper px-3 pt-1 font-sans text-ink"
+      className="flex items-center justify-center gap-2 bg-paper px-3 pt-1 font-display text-ink"
       style={{
         paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
         fontSize: 'clamp(11px, 3.4vw, 14px)',

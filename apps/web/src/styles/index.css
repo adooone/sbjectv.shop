@@ -30,11 +30,36 @@
   font-display: swap;
 }
 
+/* KyivType Titling: display face for the navigation labels. */
+@font-face {
+  font-family: "KyivType Titling";
+  src: url("/fonts/KyivTypeTitling-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "KyivType Titling";
+  src: url("/fonts/KyivTypeTitling-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "KyivType Titling";
+  src: url("/fonts/KyivTypeTitling-Bold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --color-ink: #000000;
   --color-paper: #ffffff;
   --font-sans: "KyivType Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "KyivType Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    "KyivType Titling", "KyivType Sans", ui-sans-serif, sans-serif;
 
   --animate-face: face-pulse 6s ease-in-out infinite;
 
