@@ -50,6 +50,19 @@ export type RingsOptions = {
   window: boolean;
   /** Index of the ring that becomes the window edge; rings outside it are not drawn. */
   windowRing: number;
+  /**
+   * Ink the gap between the first and second ring inside the window, so the
+   * stripes read black / white / black from the edge inward.
+   */
+  inkStripe: boolean;
+  /** Periodic glitch: colour channels split apart and a few bands tear. */
+  glitch: boolean;
+  /** Seconds between glitches, picked at random in this range. */
+  glitchEvery: [number, number];
+  /** Seconds one glitch lasts. */
+  glitchDuration: number;
+  /** Largest colour-channel offset in CSS px. */
+  glitchShift: number;
 };
 
 export const DEFAULT_OPTIONS: RingsOptions = {
@@ -64,6 +77,11 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   thicknessWavelength: 260,
   window: true,
   windowRing: 1,
+  inkStripe: true,
+  glitch: true,
+  glitchEvery: [2, 6],
+  glitchDuration: 0.3,
+  glitchShift: 6,
 };
 
 type Point = {
@@ -202,21 +220,24 @@ export const createRingsRenderer = (
     lengths = scaled.map(perimeter);
   };
 
-  const draw = (time: number) => {
-    ctx.setTransform(dprScale, 0, 0, dprScale, 0, 0);
-    ctx.clearRect(0, 0, viewW, viewH);
+  /** Draws the ink (rings and window mask) into one context. */
+  const drawScene = (target: CanvasRenderingContext2D, time: number) => {
+    target.setTransform(dprScale, 0, 0, dprScale, 0, 0);
+    target.clearRect(0, 0, viewW, viewH);
     if (portrait) {
       // Logical (x, y) → screen (viewW − y, x): a quarter turn clockwise.
-      ctx.translate(viewW, 0);
-      ctx.rotate(Math.PI / 2);
+      target.translate(viewW, 0);
+      target.rotate(Math.PI / 2);
     }
-    ctx.fillStyle = '#000';
+    target.fillStyle = '#000';
 
     const cx = width / 2;
     const cy = height / 2;
     const amp = opts.amplitude * u;
 
     const windowRing = opts.window ? opts.windowRing : -1;
+    // Outer and inner edges per ring, kept for the stripe fill below.
+    const edges: { outer: number[]; inner: number[] }[] = [];
 
     outlines.forEach((points, i) => {
       // Rings outside the window edge would be ink on ink.
@@ -292,30 +313,141 @@ export const createRingsRenderer = (
       // Repeat the first point so the band also covers the closing segment.
       outer.push(outer[0], outer[1]);
       inner.push(inner[0], inner[1]);
+      edges[i] = { outer, inner };
       if (i === windowRing) {
         // This ring becomes the window: ink from the screen edge down to the
         // ring's wobbling inner edge (even-odd fill of edge minus hole).
-        ctx.beginPath();
-        ctx.rect(0, 0, width, height);
-        ctx.moveTo(inner[0], inner[1]);
+        target.beginPath();
+        target.rect(0, 0, width, height);
+        target.moveTo(inner[0], inner[1]);
         for (let j = 2; j < inner.length; j += 2) {
-          ctx.lineTo(inner[j], inner[j + 1]);
+          target.lineTo(inner[j], inner[j + 1]);
         }
-        ctx.closePath();
-        ctx.fill('evenodd');
+        target.closePath();
+        target.fill('evenodd');
         return;
       }
-      ctx.beginPath();
-      ctx.moveTo(outer[0], outer[1]);
+      target.beginPath();
+      target.moveTo(outer[0], outer[1]);
       for (let j = 2; j < outer.length; j += 2) {
-        ctx.lineTo(outer[j], outer[j + 1]);
+        target.lineTo(outer[j], outer[j + 1]);
       }
       for (let j = inner.length - 2; j >= 0; j -= 2) {
-        ctx.lineTo(inner[j], inner[j + 1]);
+        target.lineTo(inner[j], inner[j + 1]);
       }
-      ctx.closePath();
-      ctx.fill();
+      target.closePath();
+      target.fill();
     });
+
+    // Black stripe: from the outer edge of the first ring inside the window
+    // to the inner edge of the next one (even-odd fill of the two outlines).
+    const a = edges[windowRing + 1];
+    const b = edges[windowRing + 2];
+    if (opts.inkStripe && a && b) {
+      target.beginPath();
+      target.moveTo(a.outer[0], a.outer[1]);
+      for (let j = 2; j < a.outer.length; j += 2) {
+        target.lineTo(a.outer[j], a.outer[j + 1]);
+      }
+      target.closePath();
+      target.moveTo(b.inner[0], b.inner[1]);
+      for (let j = 2; j < b.inner.length; j += 2) {
+        target.lineTo(b.inner[j], b.inner[j + 1]);
+      }
+      target.closePath();
+      target.fill('evenodd');
+    }
+  };
+
+  // Glitch schedule and scratch canvases (created on first use).
+  let glitchAt = 2 + Math.random() * 4;
+  let glitchUntil = -1;
+  let scene: HTMLCanvasElement | null = null;
+  let tint: HTMLCanvasElement | null = null;
+
+  const scratch = (): [HTMLCanvasElement, HTMLCanvasElement] => {
+    scene ??= document.createElement('canvas');
+    tint ??= document.createElement('canvas');
+    for (const el of [scene, tint]) {
+      if (el.width !== canvas.width || el.height !== canvas.height) {
+        el.width = canvas.width;
+        el.height = canvas.height;
+      }
+    }
+    return [scene, tint];
+  };
+
+  // Deterministic jitter per 50 ms step so a burst flickers instead of smearing.
+  const jitter = (step: number, n: number) => {
+    const x = Math.sin(step * 127.1 + n * 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  };
+
+  const draw = (time: number) => {
+    if (opts.glitch && glitchUntil < 0 && time >= glitchAt) {
+      glitchUntil = time + opts.glitchDuration;
+      const [min, max] = opts.glitchEvery;
+      glitchAt = glitchUntil + min + Math.random() * (max - min);
+    }
+    if (glitchUntil < 0 || time > glitchUntil) {
+      glitchUntil = -1;
+      drawScene(ctx, time);
+      return;
+    }
+
+    // Chromatic aberration: the ink is rendered once, then multiplied onto
+    // white as cyan, magenta and yellow copies with different offsets. Where
+    // all three overlap the ink stays black; the edges fringe with colour.
+    const [sceneEl, tintEl] = scratch();
+    const sctx = sceneEl.getContext('2d');
+    const tctx = tintEl.getContext('2d');
+    if (!sctx || !tctx) {
+      drawScene(ctx, time);
+      return;
+    }
+    drawScene(sctx, time);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const step = Math.floor(
+      (time - (glitchUntil - opts.glitchDuration)) / 0.05,
+    );
+    const shift = opts.glitchShift * dprScale * (0.4 + jitter(step, 1) * 0.6);
+    const layers: [string, number][] = [
+      ['#00ffff', -shift],
+      ['#ff00ff', shift * (jitter(step, 2) - 0.5)],
+      ['#ffff00', shift],
+    ];
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, H);
+    for (const [color, dx] of layers) {
+      tctx.setTransform(1, 0, 0, 1, 0, 0);
+      tctx.globalCompositeOperation = 'source-over';
+      tctx.clearRect(0, 0, W, H);
+      tctx.drawImage(sceneEl, 0, 0);
+      tctx.globalCompositeOperation = 'source-in';
+      tctx.fillStyle = color;
+      tctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(tintEl, dx, 0);
+    }
+
+    // A few horizontal bands tear sideways.
+    ctx.globalCompositeOperation = 'source-over';
+    const bands = 2 + Math.floor(jitter(step, 3) * 3);
+    for (let i = 0; i < bands; i++) {
+      const y = Math.floor(jitter(step, 10 + i) * H);
+      const h = Math.max(
+        2,
+        Math.floor((6 + jitter(step, 20 + i) * 40) * dprScale),
+      );
+      const dx = Math.round((jitter(step, 30 + i) - 0.5) * 40 * dprScale);
+      ctx.drawImage(canvas, 0, y, W, h, dx, y, W, h);
+    }
+    ctx.setTransform(dprScale, 0, 0, dprScale, 0, 0);
   };
 
   return { resize, draw };
