@@ -38,7 +38,8 @@ const EDGES: Record<Corner, { x: 'left' | 'right'; y: 'top' | 'bottom' }> = {
   br: { x: 'right', y: 'bottom' },
 };
 
-const px = (value: number) => `calc(${value}px * var(--k))`;
+// --kc is one design pixel for the corners (a length), so multiply by a plain number.
+const px = (value: number) => `calc(${value} * var(--kc))`;
 
 type CornerLinkProps = {
   corner: Corner;

@@ -11,10 +11,10 @@
   @keyframes face-pulse {
     0%,
     100% {
-      transform: translate(-50%, -50%) scale(1) rotate(-2deg);
+      transform: scale(1) rotate(-2deg);
     }
     50% {
-      transform: translate(-50%, -50%) scale(1.07) rotate(2deg);
+      transform: scale(1.07) rotate(2deg);
     }
   }
 }
@@ -24,9 +24,11 @@
     @apply bg-paper text-ink font-sans antialiased;
   }
 
-  /* Design scale: 1 at the 1440 × 1024 Figma frame, shrinks with the viewport. */
+  /* One design pixel of the 1440 × 1024 Figma frame, as a length. */
   .home {
     --k: min(100vw / 1440, 100vh / 1024);
+    /* Corner links never shrink below half size, so labels stay readable on phones. */
+    --kc: max(var(--k), 0.5px);
   }
 
   @media (prefers-reduced-motion: reduce) {

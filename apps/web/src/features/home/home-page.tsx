@@ -10,7 +10,7 @@ export const HomePage = () => (
       src={zheka}
       alt="жека"
       className="animate-face absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 select-none"
-      style={{ width: 'calc(139px * var(--k))' }}
+      style={{ width: 'calc(139 * var(--k))' }}
       draggable={false}
     />
     <CornerLink corner="tl" to="/odyah" label="ОДЯГ" />
