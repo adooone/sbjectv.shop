@@ -1,6 +1,6 @@
 import { Link, type LinkProps } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
-import triangle from '@/assets/corner-triangle.svg';
+import { InkTriangle } from '@/features/nav/ink-triangle';
 
 export type Corner = 'tl' | 'tr' | 'bl' | 'br';
 
@@ -21,13 +21,14 @@ const PLACEMENTS: Record<Corner, Placement> = {
     triangle: { x: -21, y: -14, rotate: 40.03 },
     label: { x: 88, y: 104, rotate: 39.75 },
   },
+  // Bottom labels are turned 180° from the Figma frame so they read upright.
   bl: {
     triangle: { x: -10, y: -9, rotate: -137.87 },
-    label: { x: 105, y: 106, rotate: -138.15 },
+    label: { x: 105, y: 106, rotate: 41.85 },
   },
   br: {
     triangle: { x: -9, y: -20, rotate: 129.18 },
-    label: { x: 112, y: 94, rotate: 128.9 },
+    label: { x: 112, y: 94, rotate: -51.1 },
   },
 };
 
@@ -40,6 +41,13 @@ const EDGES: Record<Corner, { x: 'left' | 'right'; y: 'top' | 'bottom' }> = {
 
 // --kc is one design pixel for the corners (a length), so multiply by a plain number.
 const px = (value: number) => `calc(${value} * var(--kc))`;
+
+// The Figma triangle box is 134 design px; the ink one is drawn smaller and
+// keeps the same centre.
+const FIGMA_BOX = 134;
+const INK_BOX = 96;
+
+const CORNER_SEEDS: Record<Corner, number> = { tl: 1, tr: 2, bl: 3, br: 4 };
 
 type CornerLinkProps = {
   corner: Corner;
@@ -57,11 +65,12 @@ export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
     width: px(230),
     height: px(230),
   };
+  const shift = (FIGMA_BOX - INK_BOX) / 2;
   const triangleStyle: CSSProperties = {
-    [edge.x]: px(tri.x),
-    [edge.y]: px(tri.y),
-    width: px(134),
-    height: px(134),
+    [edge.x]: px(tri.x + shift),
+    [edge.y]: px(tri.y + shift),
+    width: px(INK_BOX),
+    height: px(INK_BOX),
     transform: `rotate(${tri.rotate}deg)`,
   };
   // The label is anchored by its centre: shift it back by half its size toward
@@ -80,11 +89,11 @@ export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
       style={box}
     >
       <span className="absolute block" style={triangleStyle} aria-hidden="true">
-        <img
-          src={triangle}
-          alt=""
-          className="absolute block invert"
-          style={{ left: '6.7%', top: 0, width: '86.6%', height: '75%' }}
+        <InkTriangle
+          size={INK_BOX}
+          color="paper"
+          seed={CORNER_SEEDS[corner]}
+          className="block h-full w-full"
         />
       </span>
       <span

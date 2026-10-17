@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { Fragment } from 'react';
-import triangle from '@/assets/corner-triangle.svg';
 import { InkEdge } from './ink-edge';
+import { InkTriangle } from './ink-triangle';
 import { NAV_LINKS } from './links';
 
 // Each word leans a little, alternating, like the hand-placed corner labels.
@@ -24,12 +24,9 @@ export const MobileNav = () => (
       {NAV_LINKS.map((link, i) => (
         <Fragment key={link.to}>
           {i > 0 && (
-            <img
-              src={triangle}
-              alt=""
-              aria-hidden="true"
-              className="block h-[9px] w-[10px]"
-            />
+            <span aria-hidden="true" className="block">
+              <InkTriangle size={18} color="ink" seed={10 + i} />
+            </span>
           )}
           <Link
             to={link.to}
