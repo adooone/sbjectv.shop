@@ -236,7 +236,16 @@ export const createRingsRenderer = (
       // (outer edge forward, inner edge backward).
       const outer: number[] = [];
       const inner: number[] = [];
-      for (const p of points) {
+      // First pass: displacement and band width per point, plus the mean
+      // displacement. On short rings the slow octave covers the whole path
+      // with nearly one value, which would shove the ring sideways as a
+      // whole; subtracting the mean keeps every ring centred on the face.
+      const ds = new Float64Array(points.length);
+      const ws = new Float64Array(points.length);
+      let meanX = 0;
+      let meanY = 0;
+      for (let j = 0; j < points.length; j++) {
+        const p = points[j];
         const theta = (p.s / length) * TAU - spin;
         const cos = Math.cos(theta);
         const sin = Math.sin(theta);
@@ -247,7 +256,7 @@ export const createRingsRenderer = (
             0.75 * noise(r2 * cos + ox + 40, r2 * sin + oy + 40));
         // Thickness swells slowly along the path and travels with the flow.
         const theta3 = (p.s / length) * TAU - spin * 0.3;
-        const w =
+        ws[j] =
           half *
           (1 +
             opts.thickness *
@@ -255,8 +264,18 @@ export const createRingsRenderer = (
                 r3 * Math.cos(theta3) + ox + 90,
                 r3 * Math.sin(theta3) + 90,
               ));
-        const px = p.x + p.nx * d;
-        const py = p.y + p.ny * d;
+        ds[j] = d;
+        meanX += p.nx * d;
+        meanY += p.ny * d;
+      }
+      meanX /= points.length;
+      meanY /= points.length;
+      for (let j = 0; j < points.length; j++) {
+        const p = points[j];
+        const d = ds[j];
+        const w = ws[j];
+        const px = p.x + p.nx * d - meanX;
+        const py = p.y + p.ny * d - meanY;
         outer.push(
           cx + (px + p.nx * w - cx) * breath,
           cy + (py + p.ny * w - cy) * breath,
