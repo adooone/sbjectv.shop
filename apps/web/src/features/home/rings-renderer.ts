@@ -45,7 +45,7 @@ export type RingsOptions = {
   thicknessWavelength: number;
   /**
    * Fill everything outside one ring with ink, so the rings sit in a window
-   * and the corners (and, in portrait, the bars above and below) are black.
+   * and the corners are black.
    */
   window: boolean;
   /** Index of the ring that becomes the window edge; rings outside it are not drawn. */
@@ -147,8 +147,13 @@ export const createRingsRenderer = (
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const noise = createNoise2D();
 
+  /** Logical (landscape) size the rings are laid out in. */
   let width = 0;
   let height = 0;
+  /** Actual canvas size in CSS px. */
+  let viewW = 0;
+  let viewH = 0;
+  let dprScale = 1;
   let k = 1;
   let portrait = false;
   /** Scale of everything derived from the stroke (wobble, wavelengths). */
@@ -158,31 +163,27 @@ export const createRingsRenderer = (
   let lengths: number[] = [];
 
   const resize = (w: number, h: number, dpr: number) => {
-    width = w;
-    height = h;
+    viewW = w;
+    viewH = h;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    dprScale = dpr;
 
+    // Portrait turns the whole composition 90°: the frame's long side runs
+    // down the phone, so the geometry is laid out in a landscape space of
+    // (h × w) and rotated when drawn. Insets stay as in the Figma frame.
     portrait = h > w;
-    // Landscape stretches the Figma frame to the viewport. Portrait keeps the
-    // desktop composition as is, scaled so the window ring's outer edge runs
-    // along the left and right screen edges, centred vertically; the window
-    // mask inks everything around it.
-    const fitRing =
-      RINGS[Math.max(0, Math.min(opts.windowRing, RINGS.length - 1))];
-    const s = portrait ? w / (fitRing.w + DESIGN.stroke) : 0;
-    const sx = portrait ? s : w / DESIGN.width;
-    const sy = portrait ? s : h / DESIGN.height;
-    const offsetX = portrait ? w / 2 - (DESIGN.width / 2) * s : 0;
-    const offsetY = portrait ? h / 2 - (DESIGN.height / 2) * s : 0;
+    width = portrait ? h : w;
+    height = portrait ? w : h;
+    const sx = width / DESIGN.width;
+    const sy = height / DESIGN.height;
     k = Math.min(sx, sy);
     half = (DESIGN.stroke * k) / 2;
     u = k;
 
     const scaled = RINGS.map((ring) => ({
-      x: ring.x * sx + offsetX,
-      y: ring.y * sy + offsetY,
+      x: ring.x * sx,
+      y: ring.y * sy,
       w: ring.w * sx,
       h: ring.h * sy,
       r: ring.r * k,
@@ -194,7 +195,13 @@ export const createRingsRenderer = (
   };
 
   const draw = (time: number) => {
-    ctx.clearRect(0, 0, width, height);
+    ctx.setTransform(dprScale, 0, 0, dprScale, 0, 0);
+    ctx.clearRect(0, 0, viewW, viewH);
+    if (portrait) {
+      // Logical (x, y) → screen (viewW − y, x): a quarter turn clockwise.
+      ctx.translate(viewW, 0);
+      ctx.rotate(Math.PI / 2);
+    }
     ctx.fillStyle = '#000';
 
     const cx = width / 2;

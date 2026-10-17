@@ -124,12 +124,11 @@
     --face: calc(139 * var(--k));
   }
 
-  /* Portrait phones show the desktop composition fitted to the width, so the
-     face keeps the design scale; only the corner links need a floor. */
+  /* Portrait phones show the desktop composition turned 90°, so the design
+     scale swaps the axes; only the corner links need a floor. */
   @media (orientation: portrait) {
     .home {
-      /* Set by the home page from the window ring: 100vw / (ring width + stroke). */
-      --k: var(--k-portrait, min(100vw / 1440, 100vh / 1024));
+      --k: min(100vh / 1440, 100vw / 1024);
       --kc: max(var(--k), 0.6px);
     }
   }
