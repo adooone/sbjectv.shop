@@ -1,15 +1,37 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #1a1a1a;
-  --color-paper: #f6f1e7;
-  --color-accent: #e4572e;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-ink: #000000;
+  --color-paper: #ffffff;
+  --font-mono: "Roboto Mono", ui-monospace, monospace;
+  --font-sans: "Roboto Mono", ui-monospace, monospace;
+
+  --animate-face: face-pulse 6s ease-in-out infinite;
+
+  @keyframes face-pulse {
+    0%,
+    100% {
+      transform: translate(-50%, -50%) scale(1) rotate(-2deg);
+    }
+    50% {
+      transform: translate(-50%, -50%) scale(1.07) rotate(2deg);
+    }
+  }
 }
 
 @layer base {
   body {
     @apply bg-paper text-ink font-sans antialiased;
+  }
+
+  /* Design scale: 1 at the 1440 × 1024 Figma frame, shrinks with the viewport. */
+  .home {
+    --k: min(100vw / 1440, 100vh / 1024);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-face {
+      animation: none;
+    }
   }
 }

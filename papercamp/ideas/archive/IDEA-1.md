@@ -1,8 +1,9 @@
 ---
 id: IDEA-1
 title: Capture your first idea
-status: idea
+status: dropped
 created: 2026-10-16
+updated: 2026-10-16
 ---
 
 This is an example idea, in the format Paper Camp expects: a short title, a status, and a paragraph of context. Read it, then archive or delete it once you've written your own.

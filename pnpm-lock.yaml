@@ -224,6 +224,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@fontsource/roboto-mono':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@sbjectv/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -242,6 +245,9 @@ importers:
       react-dom:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
+      simplex-noise:
+        specifier: ^4.0.3
+        version: 4.0.3
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -975,6 +981,9 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
+
+  '@fontsource/roboto-mono@5.3.0':
+    resolution: {integrity: sha512-yhwplHMHW9dCk+1pZuERfcJe+K3rosGVZEoK0XktkxRSqQ9qsipSwwiuW2/8Qmtp9lzu3Ixa/ie4BMH3i8CkZQ==}
 
   '@hono/node-server@2.1.5':
     resolution: {integrity: sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q==}
@@ -2664,6 +2673,9 @@ packages:
     resolution: {integrity: sha512-6x6dK6zJdpTzF4sQeNYxwtvBzf6Eg4GtlesS94HOvTudUeyK2WXAaIfmDgsyslYrRBeFIlsi54AYsFGUuhmvrQ==}
     engines: {node: '>= 0.4'}
 
+  simplex-noise@4.0.3:
+    resolution: {integrity: sha512-qSE2I4AngLQG7BXqoZj51jokT4WUXe8mOBrvfOXpci8+6Yu44+/dD5zqDpOx3Ux792eamTd2lLcI8jqFntk/lg==}
+
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
@@ -3451,6 +3463,8 @@ snapshots:
     optional: true
 
   '@exodus/bytes@1.16.0': {}
+
+  '@fontsource/roboto-mono@5.3.0': {}
 
   '@hono/node-server@2.1.5(hono@4.13.13)':
     dependencies:
@@ -4871,6 +4885,8 @@ snapshots:
       side-channel-list: 1.0.1
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
+
+  simplex-noise@4.0.3: {}
 
   source-map-js@1.2.2: {}
 

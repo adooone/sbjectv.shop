@@ -8,7 +8,9 @@ a session and keep it honest as you work (see `.claude/skills/paper-camp/SKILL.m
 
 - `apps/web/` — React 19 storefront (Vite 8, Tailwind 4, TanStack Router + Query).
   `src/router.tsx` is the route table; `src/routes/` holds route definitions;
-  `src/features/<name>/` holds pages and their components; `src/lib/api.ts` is the
+  `src/features/<name>/` holds pages and their components (`home/` is the
+  hypnotic landing page: `rings-renderer.ts` draws the Figma rings on a canvas with
+  flowing simplex noise, `corner-link.tsx` the four corner links); `src/lib/api.ts` is the
   typed API client and the shared `queryClient`; `src/styles/index.css` holds the
   Tailwind theme tokens (`@theme`).
 - `apps/core/` — Bun + Hono API. `src/app.ts` builds the app from a `Db` (so tests
