@@ -21,6 +21,10 @@ a session and keep it honest as you work (see `.claude/skills/paper-camp/SKILL.m
 
 ## Verify before you finish
 
+The dev box has 2 vCPUs: every turbo script runs with `--concurrency=2` and running
+the full verify while a dev server is up is fine, but do not start several verifies
+or builds at once, it starves the machine.
+
 `pnpm check-types`, `pnpm lint` (`pnpm lint:write` to auto-fix), `pnpm test`, and
 `pnpm build`. All four run on every PR (`.github/workflows/ci.yml`) and the first two
 run in the pre-commit hook.

@@ -166,17 +166,22 @@ export const createRingsRenderer = (
 
     portrait = h > w;
     // Landscape stretches the Figma frame to the viewport. Portrait keeps the
-    // desktop composition as is: fitted to the width, centred vertically, with
-    // the window mask inking the bars above and below.
-    const sx = w / DESIGN.width;
-    const sy = portrait ? sx : h / DESIGN.height;
-    const offsetY = portrait ? (h - DESIGN.height * sy) / 2 : 0;
+    // desktop composition as is, scaled so the window ring's outer edge runs
+    // along the left and right screen edges, centred vertically; the window
+    // mask inks everything around it.
+    const fitRing =
+      RINGS[Math.max(0, Math.min(opts.windowRing, RINGS.length - 1))];
+    const s = portrait ? w / (fitRing.w + DESIGN.stroke) : 0;
+    const sx = portrait ? s : w / DESIGN.width;
+    const sy = portrait ? s : h / DESIGN.height;
+    const offsetX = portrait ? w / 2 - (DESIGN.width / 2) * s : 0;
+    const offsetY = portrait ? h / 2 - (DESIGN.height / 2) * s : 0;
     k = Math.min(sx, sy);
     half = (DESIGN.stroke * k) / 2;
     u = k;
 
     const scaled = RINGS.map((ring) => ({
-      x: ring.x * sx,
+      x: ring.x * sx + offsetX,
       y: ring.y * sy + offsetY,
       w: ring.w * sx,
       h: ring.h * sy,
