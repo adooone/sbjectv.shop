@@ -34,9 +34,9 @@
   --color-ink: #000000;
   --color-paper: #ffffff;
   --font-sans: "KyivType Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "KyivType Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display:
-    "KyivType Titling", "KyivType Sans", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* Navigation labels. */
+  --font-display: "JetBrains Mono", ui-monospace, monospace;
 
   --animate-face: face-pulse 6s ease-in-out infinite;
 
