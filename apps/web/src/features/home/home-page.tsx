@@ -20,6 +20,12 @@ export const HomePage = () => {
           // The rectangle window leaves bigger black corners, so the corner
           // links move inward to keep their distance from the edge.
           '--corner-inset': edge === 'rect' ? 'calc(24 * var(--kc))' : '0px',
+          // Portrait design scale: the frame's long side spans the height and
+          // the window ring (815 or 1024 px plus the 30 px stroke) the width.
+          '--k-portrait':
+            edge === 'rect'
+              ? 'min(100vh / 1440, 100vw / 845)'
+              : 'min(100vh / 1440, 100vw / 1054)',
         } as CSSProperties
       }
     >

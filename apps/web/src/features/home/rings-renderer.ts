@@ -176,14 +176,22 @@ export const createRingsRenderer = (
     width = portrait ? h : w;
     height = portrait ? w : h;
     const sx = width / DESIGN.width;
-    const sy = height / DESIGN.height;
+    // Across the phone (the frame's short side) the window ring's outer edge
+    // runs along the screen edges instead of keeping the frame's margin, so
+    // the side borders stay thin; what lies outside is cut off.
+    const fitRing =
+      RINGS[Math.max(0, Math.min(opts.windowRing, RINGS.length - 1))];
+    const sy = portrait
+      ? height / (fitRing.h + DESIGN.stroke)
+      : height / DESIGN.height;
+    const offsetY = portrait ? (height - DESIGN.height * sy) / 2 : 0;
     k = Math.min(sx, sy);
     half = (DESIGN.stroke * k) / 2;
     u = k;
 
     const scaled = RINGS.map((ring) => ({
       x: ring.x * sx,
-      y: ring.y * sy,
+      y: ring.y * sy + offsetY,
       w: ring.w * sx,
       h: ring.h * sy,
       r: ring.r * k,
