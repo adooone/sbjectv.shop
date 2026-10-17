@@ -2,14 +2,15 @@ import { type CSSProperties, useMemo } from 'react';
 import zheka from '@/assets/zheka.png';
 import { MobileNav, NAV_LINKS } from '@/features/nav';
 import { CornerLink } from './corner-link';
-import { EdgeToggle, useWindowEdge } from './edge-toggle';
+import { HomeToggles, useHomeSettings } from './edge-toggle';
 import { HypnoRings } from './hypno-rings';
 
 export const HomePage = () => {
-  const [edge, setEdge] = useWindowEdge();
+  const [settings, update] = useHomeSettings();
+  const { edge, stripe } = settings;
   const options = useMemo(
-    () => ({ windowRing: edge === 'oval' ? 0 : 1 }),
-    [edge],
+    () => ({ windowRing: edge === 'oval' ? 0 : 1, inkStripe: stripe }),
+    [edge, stripe],
   );
 
   return (
@@ -51,7 +52,7 @@ export const HomePage = () => {
           label={link.label}
         />
       ))}
-      <EdgeToggle value={edge} onChange={setEdge} />
+      <HomeToggles value={settings} onChange={update} />
       <MobileNav />
     </main>
   );
