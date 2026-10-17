@@ -76,7 +76,7 @@ export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
   return (
     <Link
       to={to}
-      className="group absolute block overflow-visible outline-none"
+      className="group absolute block overflow-visible outline-none portrait:hidden"
       style={box}
     >
       <span className="absolute block" style={triangleStyle} aria-hidden="true">

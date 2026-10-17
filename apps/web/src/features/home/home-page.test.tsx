@@ -15,25 +15,21 @@ const renderHome = async () => {
   await screen.findByRole('heading', { level: 1 });
 };
 
+const PAGES = [
+  ['ОДЯГ', '/odyah'],
+  ['МАНІФЕСТ', '/manifest'],
+  ['ЕБАУТ', '/about'],
+  ['ФОТОЖУРНАЛ', '/photojournal'],
+] as const;
+
 describe('HomePage', () => {
-  it('links the four corners to their pages', async () => {
+  it('links every section from the corners and the mobile nav', async () => {
     await renderHome();
-    expect(screen.getByRole('link', { name: 'ОДЯГ' })).toHaveAttribute(
-      'href',
-      '/odyah',
-    );
-    expect(screen.getByRole('link', { name: 'МАНІФЕСТ' })).toHaveAttribute(
-      'href',
-      '/manifest',
-    );
-    expect(screen.getByRole('link', { name: 'ЕБАУТ' })).toHaveAttribute(
-      'href',
-      '/about',
-    );
-    expect(screen.getByRole('link', { name: 'ФОТОЖУРНАЛ' })).toHaveAttribute(
-      'href',
-      '/photojournal',
-    );
+    for (const [label, href] of PAGES) {
+      const links = screen.getAllByRole('link', { name: label });
+      expect(links).toHaveLength(2);
+      for (const link of links) expect(link).toHaveAttribute('href', href);
+    }
   });
 
   it('shows the face in the centre', async () => {

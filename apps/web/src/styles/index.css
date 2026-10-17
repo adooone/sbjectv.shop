@@ -29,6 +29,16 @@
     --k: min(100vw / 1440, 100vh / 1024);
     /* Corner links never shrink below half size, so labels stay readable on phones. */
     --kc: max(var(--k), 0.5px);
+    --face: calc(139 * var(--k));
+  }
+
+  /* Portrait phones: the rings are re-spaced by the renderer; the face and
+     corners get sized from the width instead of the tiny design scale. */
+  @media (orientation: portrait) {
+    .home {
+      --kc: max(var(--k), 0.6px);
+      --face: 18vw;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
