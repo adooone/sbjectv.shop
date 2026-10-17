@@ -13,7 +13,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/pt-mono": "^5.3.0",
     "@sbjectv/types": "workspace:*",
     "@tanstack/react-query": "^5.104.3",
     "@tanstack/react-router": "^1.170.44",
