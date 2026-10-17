@@ -9,7 +9,7 @@ type LayoutProps = {
 export const Layout = ({ children }: LayoutProps) => (
   <div className="flex min-h-dvh flex-col bg-paper text-ink portrait:pb-24">
     <header className="border-ink/10 border-b px-6 py-4">
-      <Link to="/" className="font-mono text-lg font-bold tracking-tight">
+      <Link to="/" className="font-sans text-lg font-bold tracking-tight">
         sbjectv
       </Link>
     </header>
