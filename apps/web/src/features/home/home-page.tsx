@@ -1,4 +1,5 @@
 import zheka from '@/assets/zheka.png';
+import { MobileNav, NAV_LINKS } from '@/features/nav';
 import { CornerLink } from './corner-link';
 import { HypnoRings } from './hypno-rings';
 
@@ -13,9 +14,14 @@ export const HomePage = () => (
       style={{ width: 'var(--face)' }}
       draggable={false}
     />
-    <CornerLink corner="tl" to="/odyah" label="ОДЯГ" />
-    <CornerLink corner="tr" to="/manifest" label="МАНІФЕСТ" />
-    <CornerLink corner="bl" to="/about" label="ЕБАУТ" />
-    <CornerLink corner="br" to="/photojournal" label="ФОТОЖУРНАЛ" />
+    {NAV_LINKS.map((link) => (
+      <CornerLink
+        key={link.to}
+        corner={link.corner}
+        to={link.to}
+        label={link.label}
+      />
+    ))}
+    <MobileNav />
   </main>
 );
