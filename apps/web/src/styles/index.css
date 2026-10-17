@@ -30,13 +30,43 @@
   font-display: swap;
 }
 
+/* KyivType Serif: navigation labels. */
+@font-face {
+  font-family: "KyivType Serif";
+  src: url("/fonts/KyivTypeSerif-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "KyivType Serif";
+  src: url("/fonts/KyivTypeSerif-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "KyivType Serif";
+  src: url("/fonts/KyivTypeSerif-Bold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "KyivType Serif";
+  src: url("/fonts/KyivTypeSerif-Heavy.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --color-ink: #000000;
   --color-paper: #ffffff;
   --font-sans: "KyivType Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, monospace;
   /* Navigation labels. */
-  --font-display: "KyivType Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "KyivType Serif", Georgia, serif;
 
   --animate-face: face-pulse 6s ease-in-out infinite;
 
