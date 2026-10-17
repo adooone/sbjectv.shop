@@ -94,7 +94,8 @@ sbjectv.shop/
 `apps/web` deploys to Vercel as a static Vite app from the `sbjectv-shop` project on the
 Adoo team (`croco-dendy-projects`), linked to this GitHub repo with root directory `apps/web`:
 
-- Production: https://sbjectv-shop.vercel.app (every push to `main`)
+- Production: https://sbjectv.how (every push to `main`). `www.sbjectv.how` redirects to it;
+  `sbjectv-shop.vercel.app` is the default Vercel alias for the same deployment.
 - Previews: one per branch and PR, e.g. `sbjectv-shop-git-<branch>-croco-dendy-projects.vercel.app`
 
 `apps/web/vercel.json` rewrites all routes to `/` for client-side routing. Set `VITE_API_URL`
