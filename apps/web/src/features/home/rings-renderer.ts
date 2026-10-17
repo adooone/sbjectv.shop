@@ -47,6 +47,11 @@ export type RingsOptions = {
   minStrokeFraction: number;
   /** Portrait: innermost ring as a fraction of the viewport width / height. */
   portraitInner: { x: number; y: number };
+  /**
+   * Landscape: fill everything outside the outer ring with ink, so the rings
+   * sit in a porthole and the corners become black.
+   */
+  window: boolean;
 };
 
 export const DEFAULT_OPTIONS: RingsOptions = {
@@ -61,6 +66,7 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   thicknessWavelength: 260,
   minStrokeFraction: 0.032,
   portraitInner: { x: 0.4, y: 0.2 },
+  window: true,
 };
 
 type Point = {
@@ -147,6 +153,7 @@ export const createRingsRenderer = (
   let width = 0;
   let height = 0;
   let k = 1;
+  let portrait = false;
   /** Scale of everything derived from the stroke (wobble, wavelengths). */
   let u = 1;
   let half = DESIGN.stroke / 2;
@@ -163,7 +170,7 @@ export const createRingsRenderer = (
     const sx = w / DESIGN.width;
     const sy = h / DESIGN.height;
     k = Math.min(sx, sy);
-    const portrait = h > w;
+    portrait = h > w;
     // On phones the design scale makes the stroke hair-thin, so in portrait
     // the stroke has a floor relative to the width; the wobble follows the stroke.
     const stroke = portrait
@@ -262,6 +269,19 @@ export const createRingsRenderer = (
       // Repeat the first point so the band also covers the closing segment.
       outer.push(outer[0], outer[1]);
       inner.push(inner[0], inner[1]);
+      if (i === 0 && opts.window && !portrait) {
+        // The outer ring becomes a window: ink from the screen edge down to
+        // the ring's wobbling inner edge (even-odd fill of edge minus hole).
+        ctx.beginPath();
+        ctx.rect(0, 0, width, height);
+        ctx.moveTo(inner[0], inner[1]);
+        for (let j = 2; j < inner.length; j += 2) {
+          ctx.lineTo(inner[j], inner[j + 1]);
+        }
+        ctx.closePath();
+        ctx.fill('evenodd');
+        return;
+      }
       ctx.beginPath();
       ctx.moveTo(outer[0], outer[1]);
       for (let j = 2; j < outer.length; j += 2) {
