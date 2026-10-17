@@ -124,12 +124,11 @@
     --face: calc(139 * var(--k));
   }
 
-  /* Portrait phones: the rings are re-spaced by the renderer; the face and
-     corners get sized from the width instead of the tiny design scale. */
+  /* Portrait phones show the desktop composition fitted to the width, so the
+     face keeps the design scale; only the corner links need a floor. */
   @media (orientation: portrait) {
     .home {
       --kc: max(var(--k), 0.6px);
-      --face: 18vw;
     }
   }
 

@@ -43,13 +43,9 @@ export type RingsOptions = {
   thickness: number;
   /** Wavelength of the thickness variation along the path in design px. */
   thicknessWavelength: number;
-  /** Portrait: stroke never gets thinner than this fraction of the viewport width. */
-  minStrokeFraction: number;
-  /** Portrait: innermost ring as a fraction of the viewport width / height. */
-  portraitInner: { x: number; y: number };
   /**
-   * Landscape: fill everything outside one ring with ink, so the rings sit in
-   * a window and the corners become black.
+   * Fill everything outside one ring with ink, so the rings sit in a window
+   * and the corners (and, in portrait, the bars above and below) are black.
    */
   window: boolean;
   /** Index of the ring that becomes the window edge; rings outside it are not drawn. */
@@ -66,8 +62,6 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   segment: 4,
   thickness: 0.35,
   thicknessWavelength: 260,
-  minStrokeFraction: 0.032,
-  portraitInner: { x: 0.4, y: 0.2 },
   window: true,
   windowRing: 1,
 };
@@ -170,41 +164,24 @@ export const createRingsRenderer = (
     canvas.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const sx = w / DESIGN.width;
-    const sy = h / DESIGN.height;
-    k = Math.min(sx, sy);
     portrait = h > w;
-    // On phones the design scale makes the stroke hair-thin, so in portrait
-    // the stroke has a floor relative to the width; the wobble follows the stroke.
-    const stroke = portrait
-      ? Math.max(DESIGN.stroke * k, opts.minStrokeFraction * w)
-      : DESIGN.stroke * k;
-    half = stroke / 2;
-    u = stroke / DESIGN.stroke;
+    // Landscape stretches the Figma frame to the viewport. Portrait keeps the
+    // desktop composition as is: fitted to the width, centred vertically, with
+    // the window mask inking the bars above and below.
+    const sx = w / DESIGN.width;
+    const sy = portrait ? sx : h / DESIGN.height;
+    const offsetY = portrait ? (h - DESIGN.height * sy) / 2 : 0;
+    k = Math.min(sx, sy);
+    half = (DESIGN.stroke * k) / 2;
+    u = k;
 
-    const scaled = RINGS.map((ring, i) => {
-      if (!portrait) {
-        return {
-          x: ring.x * sx,
-          y: ring.y * sy,
-          w: ring.w * sx,
-          h: ring.h * sy,
-          r: ring.r * k,
-        };
-      }
-      // Portrait: the Figma insets would squeeze the inner rings to a sliver,
-      // so rings are spaced evenly from the edge down to a roomy inner ring.
-      const t = i / (RINGS.length - 1);
-      const insetX = (t * (1 - opts.portraitInner.x) * w) / 2;
-      const insetY = (t * (1 - opts.portraitInner.y) * h) / 2;
-      return {
-        x: insetX,
-        y: insetY,
-        w: w - 2 * insetX,
-        h: h - 2 * insetY,
-        r: ring.r * k,
-      };
-    });
+    const scaled = RINGS.map((ring) => ({
+      x: ring.x * sx,
+      y: ring.y * sy + offsetY,
+      w: ring.w * sx,
+      h: ring.h * sy,
+      r: ring.r * k,
+    }));
     outlines = scaled.map((ring) =>
       roundedRectOutline(ring, Math.max(2, opts.segment * u)),
     );
@@ -219,7 +196,7 @@ export const createRingsRenderer = (
     const cy = height / 2;
     const amp = opts.amplitude * u;
 
-    const windowRing = opts.window && !portrait ? opts.windowRing : -1;
+    const windowRing = opts.window ? opts.windowRing : -1;
 
     outlines.forEach((points, i) => {
       // Rings outside the window edge would be ink on ink.
