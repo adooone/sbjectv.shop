@@ -27,5 +27,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/tests/setup.ts'],
+    // The dev box has 2 vCPUs and 8 GB shared with the build; one worker is enough.
+    maxWorkers: 1,
   },
 });

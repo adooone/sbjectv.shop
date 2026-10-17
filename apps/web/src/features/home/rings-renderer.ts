@@ -43,15 +43,13 @@ export type RingsOptions = {
   thickness: number;
   /** Wavelength of the thickness variation along the path in design px. */
   thicknessWavelength: number;
-  /** Portrait: stroke never gets thinner than this fraction of the viewport width. */
-  minStrokeFraction: number;
-  /** Portrait: innermost ring as a fraction of the viewport width / height. */
-  portraitInner: { x: number; y: number };
   /**
-   * Landscape: fill everything outside the outer ring with ink, so the rings
-   * sit in a porthole and the corners become black.
+   * Fill everything outside one ring with ink, so the rings sit in a window
+   * and the corners are black.
    */
   window: boolean;
+  /** Index of the ring that becomes the window edge; rings outside it are not drawn. */
+  windowRing: number;
 };
 
 export const DEFAULT_OPTIONS: RingsOptions = {
@@ -64,9 +62,8 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   segment: 4,
   thickness: 0.35,
   thicknessWavelength: 260,
-  minStrokeFraction: 0.032,
-  portraitInner: { x: 0.4, y: 0.2 },
   window: true,
+  windowRing: 1,
 };
 
 type Point = {
@@ -150,8 +147,13 @@ export const createRingsRenderer = (
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const noise = createNoise2D();
 
+  /** Logical (landscape) size the rings are laid out in. */
   let width = 0;
   let height = 0;
+  /** Actual canvas size in CSS px. */
+  let viewW = 0;
+  let viewH = 0;
+  let dprScale = 1;
   let k = 1;
   let portrait = false;
   /** Scale of everything derived from the stroke (wobble, wavelengths). */
@@ -161,47 +163,39 @@ export const createRingsRenderer = (
   let lengths: number[] = [];
 
   const resize = (w: number, h: number, dpr: number) => {
-    width = w;
-    height = h;
+    viewW = w;
+    viewH = h;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    dprScale = dpr;
 
-    const sx = w / DESIGN.width;
-    const sy = h / DESIGN.height;
-    k = Math.min(sx, sy);
+    // Portrait turns the whole composition 90°: the frame's long side runs
+    // down the phone, so the geometry is laid out in a landscape space of
+    // (h × w) and rotated when drawn. Insets stay as in the Figma frame.
     portrait = h > w;
-    // On phones the design scale makes the stroke hair-thin, so in portrait
-    // the stroke has a floor relative to the width; the wobble follows the stroke.
-    const stroke = portrait
-      ? Math.max(DESIGN.stroke * k, opts.minStrokeFraction * w)
-      : DESIGN.stroke * k;
-    half = stroke / 2;
-    u = stroke / DESIGN.stroke;
+    width = portrait ? h : w;
+    height = portrait ? w : h;
+    const sx = width / DESIGN.width;
+    // Across the phone (the frame's short side) the window ring's outer edge
+    // runs along the screen edges instead of keeping the frame's margin, so
+    // the side borders stay thin; what lies outside is cut off.
+    const fitRing =
+      RINGS[Math.max(0, Math.min(opts.windowRing, RINGS.length - 1))];
+    const sy = portrait
+      ? height / (fitRing.h + DESIGN.stroke)
+      : height / DESIGN.height;
+    const offsetY = portrait ? (height - DESIGN.height * sy) / 2 : 0;
+    k = Math.min(sx, sy);
+    half = (DESIGN.stroke * k) / 2;
+    u = k;
 
-    const scaled = RINGS.map((ring, i) => {
-      if (!portrait) {
-        return {
-          x: ring.x * sx,
-          y: ring.y * sy,
-          w: ring.w * sx,
-          h: ring.h * sy,
-          r: ring.r * k,
-        };
-      }
-      // Portrait: the Figma insets would squeeze the inner rings to a sliver,
-      // so rings are spaced evenly from the edge down to a roomy inner ring.
-      const t = i / (RINGS.length - 1);
-      const insetX = (t * (1 - opts.portraitInner.x) * w) / 2;
-      const insetY = (t * (1 - opts.portraitInner.y) * h) / 2;
-      return {
-        x: insetX,
-        y: insetY,
-        w: w - 2 * insetX,
-        h: h - 2 * insetY,
-        r: ring.r * k,
-      };
-    });
+    const scaled = RINGS.map((ring) => ({
+      x: ring.x * sx,
+      y: ring.y * sy + offsetY,
+      w: ring.w * sx,
+      h: ring.h * sy,
+      r: ring.r * k,
+    }));
     outlines = scaled.map((ring) =>
       roundedRectOutline(ring, Math.max(2, opts.segment * u)),
     );
@@ -209,14 +203,24 @@ export const createRingsRenderer = (
   };
 
   const draw = (time: number) => {
-    ctx.clearRect(0, 0, width, height);
+    ctx.setTransform(dprScale, 0, 0, dprScale, 0, 0);
+    ctx.clearRect(0, 0, viewW, viewH);
+    if (portrait) {
+      // Logical (x, y) → screen (viewW − y, x): a quarter turn clockwise.
+      ctx.translate(viewW, 0);
+      ctx.rotate(Math.PI / 2);
+    }
     ctx.fillStyle = '#000';
 
     const cx = width / 2;
     const cy = height / 2;
     const amp = opts.amplitude * u;
 
+    const windowRing = opts.window ? opts.windowRing : -1;
+
     outlines.forEach((points, i) => {
+      // Rings outside the window edge would be ink on ink.
+      if (i < windowRing) return;
       // Neighbouring rings flow in opposite directions: even ones clockwise,
       // odd ones counter-clockwise.
       const direction = i % 2 === 0 ? 1 : -1;
@@ -288,9 +292,9 @@ export const createRingsRenderer = (
       // Repeat the first point so the band also covers the closing segment.
       outer.push(outer[0], outer[1]);
       inner.push(inner[0], inner[1]);
-      if (i === 0 && opts.window && !portrait) {
-        // The outer ring becomes a window: ink from the screen edge down to
-        // the ring's wobbling inner edge (even-odd fill of edge minus hole).
+      if (i === windowRing) {
+        // This ring becomes the window: ink from the screen edge down to the
+        // ring's wobbling inner edge (even-odd fill of edge minus hole).
         ctx.beginPath();
         ctx.rect(0, 0, width, height);
         ctx.moveTo(inner[0], inner[1]);

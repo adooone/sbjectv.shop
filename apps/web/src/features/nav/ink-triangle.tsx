@@ -8,7 +8,7 @@ import { roundedPolygonOutline } from './ink-triangle-geometry';
  */
 
 type InkTriangleProps = {
-  /** CSS size of the square canvas in px. */
+  /** Drawing resolution of the square canvas in CSS px (display size comes from the parent). */
   size: number;
   color: 'ink' | 'paper';
   /** Changes the wobble so neighbouring triangles don't move in lockstep. */
@@ -126,11 +126,13 @@ export const InkTriangle = ({
     return () => cancelAnimationFrame(frame);
   }, [size, color, seed]);
 
+  // The canvas fills whatever box it is given; `size` only sets the drawing
+  // resolution, so a CSS-scaled wrapper never pushes it out of place.
   return (
     <canvas
       ref={ref}
       className={className}
-      style={{ width: size, height: size }}
+      style={{ width: '100%', height: '100%' }}
     />
   );
 };
