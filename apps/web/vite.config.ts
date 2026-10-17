@@ -13,6 +13,8 @@ export default defineConfig({
   server: {
     host: true,
     port: 3200,
+    // Dev box reachable over the tailnet by its MagicDNS name.
+    allowedHosts: ['deimos', '.ts.net'],
   },
   preview: {
     port: 3200,
