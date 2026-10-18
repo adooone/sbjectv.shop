@@ -182,9 +182,12 @@ const ABOUT = shape(
     { x: 330, y: 230 },
     { x: 1110, y: 230 },
     { x: 1110, y: 760 },
-    { x: 560, y: 760 },
-    { x: 430, y: 905 },
-    { x: 470, y: 760 },
+    { x: 600, y: 760 },
+    // A blunt tip: two close vertices keep every corner obtuse, so the band
+    // never folds over itself.
+    { x: 460, y: 904 },
+    { x: 420, y: 898 },
+    { x: 480, y: 760 },
     { x: 330, y: 760 },
   ],
   110,

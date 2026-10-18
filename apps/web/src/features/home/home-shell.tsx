@@ -76,7 +76,13 @@ export const HomeShell = () => {
           key={homeCorner}
           style={{ animation: 'fade-in 0.4s ease-out 0.3s both' }}
         >
-          <CornerLink corner={homeCorner} to="/" label="ДОДОМУ" />
+          <CornerLink
+            corner={homeCorner}
+            to="/"
+            label="ДОДОМУ"
+            // Above the film strip there is only a thin black band.
+            layout={scene === 'film' ? 'row' : 'diagonal'}
+          />
         </div>
       )}
       {atHome && <HomeToggles value={settings} onChange={update} />}
