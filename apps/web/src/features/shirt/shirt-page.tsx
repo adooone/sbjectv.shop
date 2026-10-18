@@ -5,7 +5,7 @@
  */
 export const ShirtPage = () => (
   <section
-    className="absolute flex flex-col gap-3 text-paper portrait:hidden"
+    className="absolute flex flex-col gap-2 text-paper portrait:hidden"
     style={{
       left: 'calc(96 * var(--kc))',
       top: 'calc(72 * var(--kc))',
@@ -15,13 +15,13 @@ export const ShirtPage = () => (
   >
     <h1
       className="font-display font-semibold leading-none"
-      style={{ fontSize: 'calc(72 * var(--k))' }}
+      style={{ fontSize: 'calc(36 * var(--k))' }}
     >
       ФУТБОЛКИ
     </h1>
     <p
       className="font-sans text-paper/70"
-      style={{ fontSize: 'calc(20 * var(--k))' }}
+      style={{ fontSize: 'calc(16 * var(--k))' }}
     >
       Скоро тут будуть дизайни.
     </p>
