@@ -101,14 +101,15 @@ export const CornerLink = ({
   };
   const shift = (FIGMA_BOX - INK_BOX) / 2;
   const row = layout === 'row';
-  // Row: a smaller triangle, apex to the right, after the upright label.
+  // Row: a smaller triangle on the corner's side of the upright label, its
+  // apex pointing out toward that corner (left in a left corner).
   const triangleStyle: CSSProperties = row
     ? {
         [edge.x]: px(28),
         [edge.y]: px(40),
         width: px(52),
         height: px(52),
-        transform: 'rotate(90deg)',
+        transform: `rotate(${edge.x === 'left' ? -90 : 90}deg)`,
         opacity: mode === 'title' ? 0 : 1,
         transition: 'opacity 0.2s ease-in-out',
       }
