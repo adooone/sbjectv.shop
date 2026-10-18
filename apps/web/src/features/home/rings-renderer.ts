@@ -260,6 +260,10 @@ export type RingsRenderer = {
   draw: (time: number) => void;
   /** Switches the scene; the window edge morphs and the inside fades. */
   setScene: (scene: SceneId) => void;
+  /** Updates options in place, keeping the running animation. */
+  setOptions: (options: Partial<RingsOptions>) => void;
+  /** 0 = full detail, 1 and 2 trade points and pixels for frame rate. */
+  setQuality: (level: 0 | 1 | 2) => void;
 };
 
 export const createRingsRenderer = (
@@ -287,6 +291,33 @@ export const createRingsRenderer = (
   let outlines: Point[][] = [];
   let lengths: number[] = [];
   let geometry: Partial<Record<SceneId, SceneGeometry>> = {};
+  /** Last known size, so options and quality changes can rebuild geometry. */
+  let lastW = 0;
+  let lastH = 0;
+  let lastDpr = 1;
+  /** Adaptive quality: fewer points along the outlines and fewer pixels. */
+  let qualitySegment = 1;
+  let qualityPixels = 1;
+  /** Reused per-ring scratch buffers, so a frame allocates nothing. */
+  type RingBuffers = {
+    outer: Float64Array;
+    inner: Float64Array;
+    ds: Float64Array;
+    ws: Float64Array;
+  };
+  const buffers: RingBuffers[] = [];
+  const buffersFor = (i: number, n: number): RingBuffers => {
+    const have = buffers[i];
+    if (have && have.ds.length >= n) return have;
+    const made = {
+      outer: new Float64Array(2 * n + 2),
+      inner: new Float64Array(2 * n + 2),
+      ds: new Float64Array(n),
+      ws: new Float64Array(n),
+    };
+    buffers[i] = made;
+    return made;
+  };
   /** Per-point start delays for the slide stage (left first), on the home outline. */
   let slideKey: number[] = [];
   let scene: SceneId = 'home';
@@ -296,6 +327,16 @@ export const createRingsRenderer = (
   let morphTo: SceneId = 'home';
 
   const resize = (w: number, h: number, dpr: number) => {
+    lastW = w;
+    lastH = h;
+    lastDpr = dpr;
+    layout();
+  };
+
+  const layout = () => {
+    const w = lastW;
+    const h = lastH;
+    const dpr = lastDpr * qualityPixels;
     viewW = w;
     viewH = h;
     canvas.width = Math.round(w * dpr);
@@ -321,7 +362,7 @@ export const createRingsRenderer = (
     k = Math.min(sx, sy);
     half = (DESIGN.stroke * k) / 2;
     u = k;
-    const segment = Math.max(2, opts.segment * u);
+    const segment = Math.max(2, opts.segment * u * qualitySegment);
 
     const scaled = RINGS.map((ring) => ({
       x: ring.x * sx,
@@ -473,7 +514,20 @@ export const createRingsRenderer = (
     if (alpha <= 0 || ink.length === 0) return;
     target.globalAlpha = alpha;
     target.beginPath();
-    for (const r of ink) target.roundRect(r.x, r.y, r.w, r.h, r.r);
+    if (typeof target.roundRect === 'function') {
+      for (const r of ink) target.roundRect(r.x, r.y, r.w, r.h, r.r);
+    } else {
+      // Older Safari: trace the rounded rectangle by hand.
+      for (const r of ink) {
+        const rr = Math.min(r.r, r.w / 2, r.h / 2);
+        target.moveTo(r.x + rr, r.y);
+        target.arcTo(r.x + r.w, r.y, r.x + r.w, r.y + r.h, rr);
+        target.arcTo(r.x + r.w, r.y + r.h, r.x, r.y + r.h, rr);
+        target.arcTo(r.x, r.y + r.h, r.x, r.y, rr);
+        target.arcTo(r.x, r.y, r.x + r.w, r.y, rr);
+        target.closePath();
+      }
+    }
     target.fill();
     target.globalAlpha = 1;
   };
@@ -506,7 +560,8 @@ export const createRingsRenderer = (
 
     const windowRing = opts.window ? opts.windowRing : -1;
     // Outer and inner edges per ring, kept for the stripe fill below.
-    const edges: { outer: number[]; inner: number[] }[] = [];
+    const edges: { outer: Float64Array; inner: Float64Array; count: number }[] =
+      [];
     // Everything inside the window fades out as a section takes over.
     const fade = 1 - section;
     const win = windowPath(time);
@@ -534,18 +589,17 @@ export const createRingsRenderer = (
       const ox = i * 7.3 + time * opts.drift;
       const oy = i * 3.7;
       // Outer and inner edges of the band; the band is filled as one polygon
-      // (outer edge forward, inner edge backward).
-      const outer: number[] = [];
-      const inner: number[] = [];
+      // (outer edge forward, inner edge backward). Buffers are reused.
+      const n = points.length;
+      const { outer, inner, ds, ws } = buffersFor(i, n);
+      const count = 2 * n + 2;
       // First pass: displacement and band width per point, plus the mean
       // displacement. On short rings the slow octave covers the whole path
       // with nearly one value, which would shove the ring sideways as a
       // whole; subtracting the mean keeps every ring centred on the face.
-      const ds = new Float64Array(points.length);
-      const ws = new Float64Array(points.length);
       let meanX = 0;
       let meanY = 0;
-      for (let j = 0; j < points.length; j++) {
+      for (let j = 0; j < n; j++) {
         const p = points[j];
         const theta = (p.s / length) * TAU - spin;
         const cos = Math.cos(theta);
@@ -569,34 +623,32 @@ export const createRingsRenderer = (
         meanX += p.nx * d;
         meanY += p.ny * d;
       }
-      meanX /= points.length;
-      meanY /= points.length;
-      for (let j = 0; j < points.length; j++) {
+      meanX /= n;
+      meanY /= n;
+      for (let j = 0; j < n; j++) {
         const p = points[j];
         const d = ds[j];
         const w = ws[j];
         const px = p.x + p.nx * d - meanX;
         const py = p.y + p.ny * d - meanY;
-        outer.push(
-          cx + (px + p.nx * w - cx) * breath,
-          cy + (py + p.ny * w - cy) * breath,
-        );
-        inner.push(
-          cx + (px - p.nx * w - cx) * breath,
-          cy + (py - p.ny * w - cy) * breath,
-        );
+        outer[2 * j] = cx + (px + p.nx * w - cx) * breath;
+        outer[2 * j + 1] = cy + (py + p.ny * w - cy) * breath;
+        inner[2 * j] = cx + (px - p.nx * w - cx) * breath;
+        inner[2 * j + 1] = cy + (py - p.ny * w - cy) * breath;
       }
       // Repeat the first point so the band also covers the closing segment.
-      outer.push(outer[0], outer[1]);
-      inner.push(inner[0], inner[1]);
-      edges[i] = { outer, inner };
+      outer[2 * n] = outer[0];
+      outer[2 * n + 1] = outer[1];
+      inner[2 * n] = inner[0];
+      inner[2 * n + 1] = inner[1];
+      edges[i] = { outer, inner, count };
       if (i === windowRing) {
         // This ring becomes the window: ink from the screen edge down to the
         // ring's wobbling inner edge (even-odd fill of edge minus hole).
         target.beginPath();
         target.rect(0, 0, width, height);
         target.moveTo(inner[0], inner[1]);
-        for (let j = 2; j < inner.length; j += 2) {
+        for (let j = 2; j < count; j += 2) {
           target.lineTo(inner[j], inner[j + 1]);
         }
         target.closePath();
@@ -605,10 +657,10 @@ export const createRingsRenderer = (
       }
       target.beginPath();
       target.moveTo(outer[0], outer[1]);
-      for (let j = 2; j < outer.length; j += 2) {
+      for (let j = 2; j < count; j += 2) {
         target.lineTo(outer[j], outer[j + 1]);
       }
-      for (let j = inner.length - 2; j >= 0; j -= 2) {
+      for (let j = count - 2; j >= 0; j -= 2) {
         target.lineTo(inner[j], inner[j + 1]);
       }
       target.closePath();
@@ -624,12 +676,12 @@ export const createRingsRenderer = (
       target.globalAlpha = fade;
       target.beginPath();
       target.moveTo(a.outer[0], a.outer[1]);
-      for (let j = 2; j < a.outer.length; j += 2) {
+      for (let j = 2; j < a.count; j += 2) {
         target.lineTo(a.outer[j], a.outer[j + 1]);
       }
       target.closePath();
       target.moveTo(b.inner[0], b.inner[1]);
-      for (let j = 2; j < b.inner.length; j += 2) {
+      for (let j = 2; j < b.count; j += 2) {
         target.lineTo(b.inner[j], b.inner[j + 1]);
       }
       target.closePath();
@@ -671,6 +723,24 @@ export const createRingsRenderer = (
 
   const setScene = (next: SceneId) => {
     pendingScene = next;
+  };
+
+  const setOptions = (next: Partial<RingsOptions>) => {
+    Object.assign(opts, next);
+    if (lastW > 0 && lastH > 0) layout();
+  };
+
+  const QUALITY_SEGMENT = [1, 1.6, 2.4] as const;
+  const QUALITY_PIXELS = [1, 0.8, 0.65] as const;
+  const setQuality = (level: 0 | 1 | 2) => {
+    if (
+      qualitySegment === QUALITY_SEGMENT[level] &&
+      qualityPixels === QUALITY_PIXELS[level]
+    )
+      return;
+    qualitySegment = QUALITY_SEGMENT[level];
+    qualityPixels = QUALITY_PIXELS[level];
+    if (lastW > 0 && lastH > 0) layout();
   };
 
   const draw = (time: number) => {
@@ -754,5 +824,5 @@ export const createRingsRenderer = (
     ctx.setTransform(dprScale, 0, 0, dprScale, 0, 0);
   };
 
-  return { resize, draw, setScene };
+  return { resize, draw, setScene, setOptions, setQuality };
 };

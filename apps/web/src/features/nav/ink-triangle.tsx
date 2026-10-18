@@ -1,10 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { createNoise2D } from 'simplex-noise';
+import {
+  cappedDpr,
+  observeVisible,
+  prefersReducedMotion,
+  subscribeTick,
+} from '@/lib/ticker';
 import { roundedPolygonOutline } from './ink-triangle-geometry';
 
 /**
  * A triangle drawn as a hand-drawn ink stroke: wobbly, with thickness that
- * swells and thins, animated with the same travelling noise as the rings.
+ * swells and thins, animated with the same travelling noise as the rings. It
+ * shares the page's single animation loop and stops while paused or off
+ * screen.
  */
 
 type InkTriangleProps = {
@@ -15,6 +23,8 @@ type InkTriangleProps = {
   seed?: number;
   /** Fills the inside of the outline (hover state); eases in and out. */
   filled?: boolean;
+  /** Stops animating (for instance while the owner is faded out). */
+  paused?: boolean;
   className?: string;
 };
 
@@ -33,15 +43,12 @@ const mulberry32 = (seed: number) => {
   };
 };
 
-const prefersReducedMotion = () =>
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 export const InkTriangle = ({
   size,
   color,
   seed = 1,
   filled = false,
+  paused = false,
   className,
 }: InkTriangleProps) => {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -59,7 +66,7 @@ export const InkTriangle = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = cappedDpr();
     canvas.width = Math.round(size * dpr);
     canvas.height = Math.round(size * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -74,7 +81,7 @@ export const InkTriangle = ({
     let lastTime = start;
 
     // Same proportions as the Figma triangle (116 × 100.5), inset so the
-    // stroke and the tail stay inside the canvas.
+    // stroke stays inside the canvas.
     const pad = size * 0.16;
     const w = size - 2 * pad;
     const h = w * (100.5 / 116);
@@ -88,6 +95,9 @@ export const InkTriangle = ({
       size * 0.07,
       Math.max(1, size / 60),
     );
+    const n = points.length;
+    const outer = new Float64Array(n * 2 + 2);
+    const inner = new Float64Array(n * 2 + 2);
 
     const half = size * 0.045;
     const amp = size * 0.03;
@@ -95,14 +105,13 @@ export const InkTriangle = ({
     const r2 = r1 / 2.5;
     const r3 = length / (size * 1.6 * TAU);
 
-    const draw = () => {
-      const time = reduced ? 0 : (performance.now() - start) / 1000;
+    const draw = (now: number) => {
+      const time = reduced ? 0 : (now - start) / 1000;
       const spin = (direction * time * 0.35) / r1;
       ctx.clearRect(0, 0, size, size);
       ctx.fillStyle = color === 'ink' ? '#000' : '#fff';
-      const outer: number[] = [];
-      const inner: number[] = [];
-      for (const p of points) {
+      for (let j = 0; j < n; j++) {
+        const p = points[j];
         const theta = (p.s / length) * TAU - spin;
         const d =
           amp *
@@ -114,12 +123,16 @@ export const InkTriangle = ({
             0.35 * noise(r3 * Math.cos(theta) + 90, r3 * Math.sin(theta) + 90));
         const px = p.x + p.nx * d;
         const py = p.y + p.ny * d;
-        outer.push(px + p.nx * bw, py + p.ny * bw);
-        inner.push(px - p.nx * bw, py - p.ny * bw);
+        outer[2 * j] = px + p.nx * bw;
+        outer[2 * j + 1] = py + p.ny * bw;
+        inner[2 * j] = px - p.nx * bw;
+        inner[2 * j + 1] = py - p.ny * bw;
       }
       // Repeat the first point so the band also covers the closing segment.
-      outer.push(outer[0], outer[1]);
-      inner.push(inner[0], inner[1]);
+      outer[2 * n] = outer[0];
+      outer[2 * n + 1] = outer[1];
+      inner[2 * n] = inner[0];
+      inner[2 * n + 1] = inner[1];
       ctx.beginPath();
       ctx.moveTo(outer[0], outer[1]);
       for (let j = 2; j < outer.length; j += 2)
@@ -129,7 +142,7 @@ export const InkTriangle = ({
       }
       ctx.closePath();
       ctx.fill();
-      const now = performance.now();
+
       const dt = Math.min(0.1, (now - lastTime) / 1000);
       lastTime = now;
       const step = reduced ? 1 : dt / FILL_SECONDS;
@@ -151,19 +164,32 @@ export const InkTriangle = ({
       }
     };
 
-    redraw.current = draw;
-    draw();
-    let frame = 0;
-    const loop = () => {
-      draw();
-      frame = requestAnimationFrame(loop);
+    redraw.current = () => draw(performance.now());
+    draw(start);
+
+    // Run on the shared loop only while visible and not paused.
+    let visible = true;
+    let unsubscribe: (() => void) | null = null;
+    const sync = () => {
+      const shouldRun = visible && !paused && !reduced;
+      if (shouldRun && !unsubscribe) unsubscribe = subscribeTick(draw);
+      if (!shouldRun && unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
     };
-    if (!reduced) frame = requestAnimationFrame(loop);
+    const stopObserving = observeVisible(canvas, (v) => {
+      visible = v;
+      sync();
+    });
+    sync();
+
     return () => {
-      cancelAnimationFrame(frame);
+      unsubscribe?.();
+      stopObserving();
       redraw.current = () => {};
     };
-  }, [size, color, seed]);
+  }, [size, color, seed, paused]);
 
   // The canvas fills whatever box it is given; `size` only sets the drawing
   // resolution, so a CSS-scaled wrapper never pushes it out of place.

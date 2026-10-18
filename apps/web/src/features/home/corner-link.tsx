@@ -164,6 +164,7 @@ export const CornerLink = ({
           color="paper"
           seed={CORNER_SEEDS[corner]}
           filled={hot && mode === 'corner'}
+          paused={mode === 'hidden'}
           className="block h-full w-full"
         />
       </span>
