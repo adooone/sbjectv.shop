@@ -260,6 +260,8 @@ export type RingsRenderer = {
   draw: (time: number) => void;
   /** Switches the scene; the window edge morphs and the inside fades. */
   setScene: (scene: SceneId, exit?: { x: number; y: number }) => void;
+  /** Screen-space offset of the inside after the last draw, in CSS px. */
+  interiorShift: () => { x: number; y: number };
   /** Updates options in place, keeping the running animation. */
   setOptions: (options: Partial<RingsOptions>) => void;
   /** 0 = full detail, 1 and 2 trade points and pixels for frame rate. */
@@ -324,6 +326,7 @@ export const createRingsRenderer = (
   let pendingScene: SceneId = 'home';
   /** Screen direction the inside flies off in when a section opens (unit-ish). */
   let exitDir = { x: 1, y: 1 };
+  let lastShift = { x: 0, y: 0 };
   let morphStart = -1;
   let morphFrom: SceneId = 'home';
   let morphTo: SceneId = 'home';
@@ -573,6 +576,10 @@ export const createRingsRenderer = (
     const dir = portrait ? { x: exitDir.y, y: -exitDir.x } : exitDir;
     const shiftX = dir.x * width * 1.2 * flight;
     const shiftY = dir.y * height * 1.2 * flight;
+    lastShift = {
+      x: exitDir.x * viewW * 1.2 * flight,
+      y: exitDir.y * viewH * 1.2 * flight,
+    };
     const win = windowPath(time);
     const rings = outlines.map((points, i) =>
       i === windowRing ? win : { points, length: lengths[i] },
@@ -833,5 +840,12 @@ export const createRingsRenderer = (
     ctx.setTransform(dprScale, 0, 0, dprScale, 0, 0);
   };
 
-  return { resize, draw, setScene, setOptions, setQuality };
+  return {
+    resize,
+    draw,
+    setScene,
+    setOptions,
+    setQuality,
+    interiorShift: () => lastShift,
+  };
 };

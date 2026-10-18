@@ -1,5 +1,5 @@
 import { Outlet, useRouterState } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import zheka from '@/assets/zheka.png';
 import { MobileNav, NAV_LINKS } from '@/features/nav';
 import { type Corner, CornerLink } from './corner-link';
@@ -52,6 +52,13 @@ export const HomeShell = () => {
   const current = NAV_LINKS.find((link) => link.to === pathname);
   const homeCorner = OPPOSITE[current?.corner ?? 'tl'];
   const exit = EXIT[current?.corner ?? 'tl'];
+  // The face is moved every frame by the renderer's own flight, so it and
+  // the rings leave and return as one piece.
+  const faceRef = useRef<HTMLImageElement>(null);
+  const onShift = useCallback((x: number, y: number) => {
+    const face = faceRef.current;
+    if (face) face.style.translate = `calc(-50% + ${x}px) calc(-50% + ${y}px)`;
+  }, []);
 
   return (
     <main className="home relative h-dvh w-full overflow-hidden bg-paper text-ink">
@@ -60,25 +67,18 @@ export const HomeShell = () => {
         options={options}
         scene={scene}
         exit={atHome ? undefined : exit}
+        onShift={onShift}
       />
       <img
+        ref={faceRef}
         src={zheka}
         alt="жека"
         width={3508}
         height={3190}
-        className="animate-face absolute top-1/2 left-1/2 h-auto select-none"
+        className="animate-face absolute top-1/2 left-1/2 h-auto -translate-x-1/2 -translate-y-1/2 select-none"
         style={{
           width: 'var(--face)',
           aspectRatio: '3508 / 3190',
-          // Centred at home; in a section it has flown off screen away from
-          // the section's corner, and it flies back the same way.
-          translate: atHome
-            ? '-50% -50%'
-            : `calc(-50% + ${exit.x * 70}vw) calc(-50% + ${exit.y * 70}vh)`,
-          opacity: atHome ? 1 : 0,
-          transition: atHome
-            ? 'translate 0.6s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.3s ease-out'
-            : 'translate 0.55s cubic-bezier(0.6, 0, 0.9, 0.4), opacity 0.35s ease-in 0.2s',
           pointerEvents: atHome ? undefined : 'none',
         }}
         draggable={false}

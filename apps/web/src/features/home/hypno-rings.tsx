@@ -19,6 +19,8 @@ type HypnoRingsProps = {
   scene?: SceneId;
   /** Screen direction the inside flies off in when a section opens. */
   exit?: { x: number; y: number };
+  /** Called after every draw with the inside's offset, for DOM that flies with it. */
+  onShift?: (x: number, y: number) => void;
 };
 
 /**
@@ -35,6 +37,7 @@ export const HypnoRings = ({
   options,
   scene = 'home',
   exit,
+  onShift,
 }: HypnoRingsProps) => {
   const ref = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<RingsRenderer | null>(null);
@@ -42,6 +45,8 @@ export const HypnoRings = ({
   sceneRef.current = scene;
   const exitRef = useRef(exit);
   exitRef.current = exit;
+  const onShiftRef = useRef(onShift);
+  onShiftRef.current = onShift;
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -60,6 +65,8 @@ export const HypnoRings = ({
     const resize = () => {
       renderer.resize(canvas.clientWidth, canvas.clientHeight, cappedDpr());
       renderer.draw(clock.now());
+      const s = renderer.interiorShift();
+      onShiftRef.current?.(s.x, s.y);
     };
 
     resize();
@@ -96,6 +103,8 @@ export const HypnoRings = ({
         renderer.setQuality(quality);
       }
       renderer.draw(clock.tick(now));
+      const s = renderer.interiorShift();
+      onShiftRef.current?.(s.x, s.y);
     };
     const unsubscribe = reduced ? null : subscribeTick(tick);
 
