@@ -323,11 +323,13 @@ const renormalize = (points: Point[]): void => {
 /**
  * The morph runs in two equal stages with a short rest between them: the
  * rectangle slides and shrinks onto the shirt's footprint, pauses, then that
- * box reshapes into the shirt. Going home plays the same stages backwards.
+ * box reshapes into the shirt. Going home is one stage straight from the
+ * shirt to the window rectangle.
  */
 const MORPH_STAGE_SECONDS = 0.45;
 const MORPH_PAUSE_SECONDS = 0.12;
 const MORPH_SECONDS = 2 * MORPH_STAGE_SECONDS + MORPH_PAUSE_SECONDS;
+const MORPH_HOME_SECONDS = 0.6;
 const MORPH_POINTS = 720;
 /** Smootherstep: zero velocity and acceleration at both ends, no kinks. */
 const easeInOut = (p: number) => p * p * p * (p * (p * 6 - 15) + 10);
@@ -453,9 +455,12 @@ export const createRingsRenderer = (
   };
 
   /** 0 = home rectangle, 1 = shirt, in between while morphing. */
+  const morphSeconds = () =>
+    morphTo === 'shirt' ? MORPH_SECONDS : MORPH_HOME_SECONDS;
+
   const shirtness = (time: number): number => {
     const p =
-      morphStart < 0 ? 1 : Math.min(1, (time - morphStart) / MORPH_SECONDS);
+      morphStart < 0 ? 1 : Math.min(1, (time - morphStart) / morphSeconds());
     const e = easeInOut(p);
     return morphTo === 'shirt' ? e : 1 - e;
   };
@@ -470,12 +475,21 @@ export const createRingsRenderer = (
   ): { a: Point[]; b: Point[]; la: number; lb: number; t: number } | null => {
     if (morphStart < 0) return null;
     const elapsed = time - morphStart;
-    if (elapsed >= MORPH_SECONDS) return null;
-    const toShirt = morphTo === 'shirt';
+    if (elapsed >= morphSeconds()) return null;
     const home = { points: homeR, length: lengths[0] };
     const box = { points: boxR, length: boxLength };
     const tee = { points: shirtR, length: shirt.length };
-    const [first, second] = toShirt ? [home, tee] : [tee, home];
+    if (morphTo === 'home') {
+      // One stage straight back to the window rectangle.
+      return {
+        a: tee.points,
+        b: home.points,
+        la: tee.length,
+        lb: home.length,
+        t: easeInOut(elapsed / MORPH_HOME_SECONDS),
+      };
+    }
+    const [first, second] = [home, tee];
     // Stage 1 → rest on the box → stage 2.
     const stage1 = Math.min(1, elapsed / MORPH_STAGE_SECONDS);
     const stage2 = Math.max(
