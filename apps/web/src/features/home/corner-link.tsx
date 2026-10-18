@@ -49,13 +49,29 @@ const INK_BOX = 96;
 
 const CORNER_SEEDS: Record<Corner, number> = { tl: 1, tr: 2, bl: 3, br: 4 };
 
+/**
+ * corner: as on the welcome screen. title: the label unrolls into the
+ * section title (top-left, upright, larger) and the triangle fades.
+ * hidden: fades out but stays mounted so it can come back.
+ */
+export type CornerMode = 'corner' | 'title' | 'hidden';
+
+// Where the section title sits, relative to the corner box (design px).
+const TITLE = { x: 72, y: 48, size: 46 };
+
 type CornerLinkProps = {
   corner: Corner;
   label: string;
   to: LinkProps['to'];
+  mode?: CornerMode;
 };
 
-export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
+export const CornerLink = ({
+  corner,
+  label,
+  to,
+  mode = 'corner',
+}: CornerLinkProps) => {
   const { triangle: tri, label: text } = PLACEMENTS[corner];
   const edge = EDGES[corner];
   // The corner of the section you are in leads back home.
@@ -68,6 +84,9 @@ export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
     [edge.y]: 'var(--corner-inset, 0px)',
     width: px(230),
     height: px(230),
+    opacity: mode === 'hidden' ? 0 : 1,
+    pointerEvents: mode === 'corner' ? undefined : 'none',
+    transition: 'opacity 0.35s ease-in-out',
   };
   const shift = (FIGMA_BOX - INK_BOX) / 2;
   const triangleStyle: CSSProperties = {
@@ -76,20 +95,35 @@ export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
     width: px(INK_BOX),
     height: px(INK_BOX),
     transform: `rotate(${tri.rotate}deg)`,
+    opacity: mode === 'title' ? 0 : 1,
+    transition: 'opacity 0.3s ease-in-out',
   };
   // The label is anchored by its centre: shift it back by half its size toward
   // the corner, then rotate it along the diagonal like in the design.
-  const labelStyle: CSSProperties = {
-    [edge.x]: px(text.x),
-    [edge.y]: px(text.y),
-    fontSize: px(30),
-    transform: `translate(${edge.x === 'left' ? '-50%' : '50%'}, ${edge.y === 'top' ? '-50%' : '50%'}) rotate(${text.rotate}deg)`,
-  };
+  const labelStyle: CSSProperties =
+    mode === 'title'
+      ? {
+          [edge.x]: px(TITLE.x),
+          [edge.y]: px(TITLE.y),
+          fontSize: `calc(${TITLE.size} * var(--k))`,
+          transform: 'translate(0, 0) rotate(0deg)',
+        }
+      : {
+          [edge.x]: px(text.x),
+          [edge.y]: px(text.y),
+          fontSize: px(30),
+          transform: `translate(${edge.x === 'left' ? '-50%' : '50%'}, ${edge.y === 'top' ? '-50%' : '50%'}) rotate(${text.rotate}deg)`,
+        };
+  // The label glides between its corner pose and the title pose.
+  labelStyle.transition =
+    'left 0.5s ease-in-out, top 0.5s ease-in-out, right 0.5s ease-in-out, bottom 0.5s ease-in-out, transform 0.5s ease-in-out, font-size 0.5s ease-in-out';
 
   return (
     <Link
       to={active ? '/' : to}
       aria-current={active ? 'page' : undefined}
+      aria-hidden={mode !== 'corner'}
+      tabIndex={mode === 'corner' ? 0 : -1}
       className="group absolute block overflow-visible outline-none portrait:hidden"
       style={box}
     >
@@ -102,7 +136,7 @@ export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
         />
       </span>
       <span
-        className={`absolute block whitespace-nowrap font-display font-semibold text-paper leading-none underline-offset-4 group-hover:underline group-focus-visible:underline ${active ? 'underline' : ''}`}
+        className={`absolute block whitespace-nowrap font-display font-semibold text-paper leading-none underline-offset-4 group-hover:underline group-focus-visible:underline ${active && mode === 'corner' ? 'underline' : ''}`}
         style={labelStyle}
       >
         {label}

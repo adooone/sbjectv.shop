@@ -51,18 +51,20 @@ export const HomeShell = () => {
         draggable={false}
       />
       <Outlet />
-      {atHome ? (
-        NAV_LINKS.map((link) => (
-          <CornerLink
-            key={link.to}
-            corner={link.corner}
-            to={link.to}
-            label={link.label}
-          />
-        ))
-      ) : (
-        // Inside a section only the way home stays, in the bottom-left corner.
-        <CornerLink corner="bl" to="/" label="ДОДОМУ" />
+      {NAV_LINKS.map((link) => (
+        <CornerLink
+          key={link.to}
+          corner={link.corner}
+          to={link.to}
+          label={link.label}
+          mode={atHome ? 'corner' : pathname === link.to ? 'title' : 'hidden'}
+        />
+      ))}
+      {!atHome && (
+        // Inside a section the way home sits in the bottom-left corner.
+        <div style={{ animation: 'fade-in 0.4s ease-out 0.3s both' }}>
+          <CornerLink corner="bl" to="/" label="ДОДОМУ" />
+        </div>
       )}
       {atHome && <HomeToggles value={settings} onChange={update} />}
       <MobileNav />
