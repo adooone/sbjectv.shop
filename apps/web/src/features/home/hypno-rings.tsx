@@ -120,7 +120,7 @@ export const HypnoRings = ({
     rendererRef.current?.setScene(scene, exitRef.current);
   }, [scene]);
 
-  // Option changes (the stripe switch) update the live renderer in place, so
+  // Option changes update the live renderer in place, so
   // the wobble and any running morph are not reset.
   useEffect(() => {
     if (options) rendererRef.current?.setOptions(options);

@@ -1,9 +1,8 @@
 import { Outlet, useRouterState } from '@tanstack/react-router';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import zheka from '@/assets/zheka.png';
 import { MobileHome, MobileNav, NAV_LINKS } from '@/features/nav';
 import { type Corner, CornerLink } from './corner-link';
-import { HomeToggles, useHomeSettings } from './home-toggles';
 import { HypnoRings } from './hypno-rings';
 import type { SceneId } from './rings-renderer';
 
@@ -43,11 +42,6 @@ const OPPOSITE: Record<Corner, Corner> = {
 export const HomeShell = () => {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const scene = SCENES[pathname] ?? 'home';
-  const [settings, update] = useHomeSettings();
-  const options = useMemo(
-    () => ({ inkStripe: settings.stripe }),
-    [settings.stripe],
-  );
   const atHome = scene === 'home';
   const current = NAV_LINKS.find((link) => link.to === pathname);
   const homeCorner = OPPOSITE[current?.corner ?? 'tl'];
@@ -64,7 +58,6 @@ export const HomeShell = () => {
     <main className="home relative h-dvh w-full overflow-hidden bg-paper text-ink">
       <HypnoRings
         className="absolute inset-0 block h-full w-full"
-        options={options}
         scene={scene}
         exit={atHome ? undefined : exit}
         onShift={onShift}
@@ -105,7 +98,6 @@ export const HomeShell = () => {
         layout={scene === 'film' ? 'row' : 'diagonal'}
         tone={scene === 'manifest' ? 'ink' : 'paper'}
       />
-      {atHome && <HomeToggles value={settings} onChange={update} />}
       <MobileHome visible={!atHome} />
       <MobileNav />
     </main>
