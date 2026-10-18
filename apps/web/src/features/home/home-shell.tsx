@@ -59,6 +59,7 @@ export const HomeShell = () => {
         className="absolute inset-0 block h-full w-full"
         options={options}
         scene={scene}
+        exit={atHome ? undefined : exit}
       />
       <img
         src={zheka}

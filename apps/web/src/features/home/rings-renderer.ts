@@ -259,7 +259,7 @@ export type RingsRenderer = {
   resize: (width: number, height: number, dpr: number) => void;
   draw: (time: number) => void;
   /** Switches the scene; the window edge morphs and the inside fades. */
-  setScene: (scene: SceneId) => void;
+  setScene: (scene: SceneId, exit?: { x: number; y: number }) => void;
   /** Updates options in place, keeping the running animation. */
   setOptions: (options: Partial<RingsOptions>) => void;
   /** 0 = full detail, 1 and 2 trade points and pixels for frame rate. */
@@ -322,6 +322,8 @@ export const createRingsRenderer = (
   let slideKey: number[] = [];
   let scene: SceneId = 'home';
   let pendingScene: SceneId = 'home';
+  /** Screen direction the inside flies off in when a section opens (unit-ish). */
+  let exitDir = { x: 1, y: 1 };
   let morphStart = -1;
   let morphFrom: SceneId = 'home';
   let morphTo: SceneId = 'home';
@@ -564,6 +566,13 @@ export const createRingsRenderer = (
       [];
     // Everything inside the window fades out as a section takes over.
     const fade = 1 - section;
+    // The inside (inner rings, stripe) flies off screen away from the
+    // section's corner, accelerating, and flies back the same way. In
+    // portrait the screen direction is turned into the logical frame.
+    const flight = section * section;
+    const dir = portrait ? { x: exitDir.y, y: -exitDir.x } : exitDir;
+    const shiftX = dir.x * width * 1.2 * flight;
+    const shiftY = dir.y * height * 1.2 * flight;
     const win = windowPath(time);
     const rings = outlines.map((points, i) =>
       i === windowRing ? win : { points, length: lengths[i] },
@@ -573,7 +582,8 @@ export const createRingsRenderer = (
       // Rings outside the window edge would be ink on ink.
       if (i < windowRing) return;
       if (i > windowRing && fade <= 0) return;
-      target.globalAlpha = i === windowRing ? 1 : fade;
+      const sx = i === windowRing ? 0 : shiftX;
+      const sy = i === windowRing ? 0 : shiftY;
       // Neighbouring rings flow in opposite directions: even ones clockwise,
       // odd ones counter-clockwise.
       const direction = i % 2 === 0 ? 1 : -1;
@@ -631,10 +641,10 @@ export const createRingsRenderer = (
         const w = ws[j];
         const px = p.x + p.nx * d - meanX;
         const py = p.y + p.ny * d - meanY;
-        outer[2 * j] = cx + (px + p.nx * w - cx) * breath;
-        outer[2 * j + 1] = cy + (py + p.ny * w - cy) * breath;
-        inner[2 * j] = cx + (px - p.nx * w - cx) * breath;
-        inner[2 * j + 1] = cy + (py - p.ny * w - cy) * breath;
+        outer[2 * j] = cx + (px + p.nx * w - cx) * breath + sx;
+        outer[2 * j + 1] = cy + (py + p.ny * w - cy) * breath + sy;
+        inner[2 * j] = cx + (px - p.nx * w - cx) * breath + sx;
+        inner[2 * j + 1] = cy + (py - p.ny * w - cy) * breath + sy;
       }
       // Repeat the first point so the band also covers the closing segment.
       outer[2 * n] = outer[0];
@@ -673,7 +683,6 @@ export const createRingsRenderer = (
     const a = edges[windowRing + 1];
     const b = edges[windowRing + 2];
     if (opts.inkStripe && a && b && fade > 0) {
-      target.globalAlpha = fade;
       target.beginPath();
       target.moveTo(a.outer[0], a.outer[1]);
       for (let j = 2; j < a.count; j += 2) {
@@ -686,7 +695,6 @@ export const createRingsRenderer = (
       }
       target.closePath();
       target.fill('evenodd');
-      target.globalAlpha = 1;
     }
 
     // Scene extras (sprocket holes) cross-fade with the morph.
@@ -721,7 +729,8 @@ export const createRingsRenderer = (
     return x - Math.floor(x);
   };
 
-  const setScene = (next: SceneId) => {
+  const setScene = (next: SceneId, exit?: { x: number; y: number }) => {
+    if (exit) exitDir = exit;
     pendingScene = next;
   };
 
