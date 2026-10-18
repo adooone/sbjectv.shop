@@ -321,17 +321,16 @@ const renormalize = (points: Point[]): void => {
 };
 
 /**
- * The morph runs in two stages: the rectangle first slides and shrinks onto
- * the shirt's footprint (fast), then that box reshapes into the shirt (slow).
- * Going home plays the same stages backwards.
+ * The morph runs in two equal stages with a short rest between them: the
+ * rectangle slides and shrinks onto the shirt's footprint, pauses, then that
+ * box reshapes into the shirt. Going home plays the same stages backwards.
  */
-const MORPH_SLIDE_SECONDS = 0.22;
-const MORPH_SHAPE_SECONDS = 0.7;
-const MORPH_SECONDS = MORPH_SLIDE_SECONDS + MORPH_SHAPE_SECONDS;
+const MORPH_STAGE_SECONDS = 0.45;
+const MORPH_PAUSE_SECONDS = 0.12;
+const MORPH_SECONDS = 2 * MORPH_STAGE_SECONDS + MORPH_PAUSE_SECONDS;
 const MORPH_POINTS = 720;
-const easeInOut = (p: number) =>
-  p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
-const easeOut = (p: number) => 1 - (1 - p) ** 3;
+/** Smootherstep: zero velocity and acceleration at both ends, no kinks. */
+const easeInOut = (p: number) => p * p * p * (p * (p * 6 - 15) + 10);
 
 /** Axis-aligned bounds of a closed outline. */
 const bounds = (points: Point[]) => {
@@ -473,23 +472,33 @@ export const createRingsRenderer = (
     const elapsed = time - morphStart;
     if (elapsed >= MORPH_SECONDS) return null;
     const toShirt = morphTo === 'shirt';
-    const first = toShirt ? MORPH_SLIDE_SECONDS : MORPH_SHAPE_SECONDS;
-    if (elapsed < first) {
-      const p = elapsed / first;
-      return toShirt
-        ? { a: homeR, b: boxR, la: lengths[0], lb: boxLength, t: easeOut(p) }
-        : {
-            a: shirtR,
-            b: boxR,
-            la: shirt.length,
-            lb: boxLength,
-            t: easeInOut(p),
-          };
+    const home = { points: homeR, length: lengths[0] };
+    const box = { points: boxR, length: boxLength };
+    const tee = { points: shirtR, length: shirt.length };
+    const [first, second] = toShirt ? [home, tee] : [tee, home];
+    // Stage 1 → rest on the box → stage 2.
+    const stage1 = Math.min(1, elapsed / MORPH_STAGE_SECONDS);
+    const stage2 = Math.max(
+      0,
+      (elapsed - MORPH_STAGE_SECONDS - MORPH_PAUSE_SECONDS) /
+        MORPH_STAGE_SECONDS,
+    );
+    if (stage2 <= 0) {
+      return {
+        a: first.points,
+        b: box.points,
+        la: first.length,
+        lb: box.length,
+        t: easeInOut(stage1),
+      };
     }
-    const p = (elapsed - first) / (MORPH_SECONDS - first);
-    return toShirt
-      ? { a: boxR, b: shirtR, la: boxLength, lb: shirt.length, t: easeInOut(p) }
-      : { a: boxR, b: homeR, la: boxLength, lb: lengths[0], t: easeOut(p) };
+    return {
+      a: box.points,
+      b: second.points,
+      la: box.length,
+      lb: second.length,
+      t: easeInOut(Math.min(1, stage2)),
+    };
   };
 
   /** The window outline for this frame: home, shirt, or a tween of both. */
