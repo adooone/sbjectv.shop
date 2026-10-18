@@ -223,6 +223,16 @@ const easeOutBack = (p: number, c1 = 1.1) => {
   return 1 + c3 * (p - 1) ** 3 + c1 * (p - 1) ** 2;
 };
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+/**
+ * Ease in and out with anticipation and overshoot: dips below 0 before
+ * moving and passes 1 before settling, like a drawn-back spring.
+ */
+const easeInOutBack = (p: number, c1 = 1.3) => {
+  const c2 = c1 * 1.525;
+  return p < 0.5
+    ? ((2 * p) ** 2 * ((c2 + 1) * 2 * p - c2)) / 2
+    : ((2 * p - 2) ** 2 * ((c2 + 1) * (p * 2 - 2) + c2) + 2) / 2;
+};
 
 /** Axis-aligned bounds of a closed outline. */
 const bounds = (points: Point[]) => {
@@ -590,11 +600,12 @@ export const createRingsRenderer = (
             ? raw
             : 1;
     const collapseOf = (i: number) => {
-      // Ring 1 (just inside the window) starts first, the next a bit later.
-      const delay = (i - windowRing - 1) * 0.12;
-      return easeInOut(clamp01((leaving - delay) / 0.5));
+      // Ring 1 (just inside the window) goes first, the next clearly later;
+      // each draws back a little before moving and overshoots before it lands.
+      const delay = (i - windowRing - 1) * 0.22;
+      return easeInOutBack(clamp01((leaving - delay) / 0.4));
     };
-    const flightRaw = clamp01((leaving - 0.5) / 0.5);
+    const flightRaw = clamp01((leaving - 0.6) / 0.4);
     const flight = flightRaw * flightRaw * flightRaw;
     const fade = flight >= 1 ? 0 : 1;
     // In portrait the screen direction is turned into the logical frame.
