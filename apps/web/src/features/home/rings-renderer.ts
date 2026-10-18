@@ -368,7 +368,9 @@ export const createRingsRenderer = (
       ),
     };
     for (const id of Object.keys(SECTION_SHAPES) as SectionScene[]) {
-      const shape = SECTION_SHAPES[id];
+      const full = SECTION_SHAPES[id];
+      // Shapes that must stay upright carry their own portrait variant.
+      const shape = portrait && full.portrait ? full.portrait : full;
       geometry[id] = geometryOf(
         sampleSegments(shape.start, shape.segments, map, segment),
         shape.ink.map((hole) => ({

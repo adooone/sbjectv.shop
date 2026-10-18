@@ -13,7 +13,16 @@ export type Vertex = { x: number; y: number };
 /** A straight segment or a quadratic curve to `to`. */
 export type Segment = { to: Vertex; c?: Vertex };
 export type InkRect = { x: number; y: number; w: number; h: number; r: number };
-export type Shape = { start: Vertex; segments: Segment[]; ink: InkRect[] };
+export type Shape = {
+  start: Vertex;
+  segments: Segment[];
+  ink: InkRect[];
+  /**
+   * Used on portrait phones instead of the rotated landscape shape, for
+   * shapes that must stay upright (a shirt, a speech bubble).
+   */
+  portrait?: Omit<Shape, 'portrait'>;
+};
 
 /**
  * Rounds every corner of a closed polygon: each vertex becomes a quadratic
@@ -117,33 +126,44 @@ const shape = (
 /** Shifts a polygon along x. */
 const shiftX = (vertices: Vertex[], dx: number) =>
   vertices.map((v) => ({ x: v.x + dx, y: v.y }));
+/** Shifts a polygon. */
+const shift = (vertices: Vertex[], dx: number, dy: number) =>
+  vertices.map((v) => ({ x: v.x + dx, y: v.y + dy }));
+
+/**
+ * Portrait shapes are authored in the phone's own frame (1024 wide × 1440
+ * tall, y down). The renderer lays everything out in the landscape frame and
+ * turns it a quarter clockwise, so a phone point (x, y) is the landscape
+ * point (y, 1024 − x). A proper rotation, so clockwise stays clockwise.
+ */
+const toLandscape = (vertices: Vertex[]) =>
+  vertices.map((v) => ({ x: v.y, y: 1024 - v.x }));
 
 /**
  * ФУТБОЛКИ: a plain t-shirt right of centre (text goes on the left), clockwise
  * from the left shoulder, which matches the rectangle's top-left corner.
  */
-const SHIRT = shape(
-  shiftX(
-    [
-      { x: 430, y: 195 },
-      { x: 610, y: 165 },
-      { x: 720, y: 238 },
-      { x: 830, y: 165 },
-      { x: 1010, y: 195 },
-      { x: 1120, y: 350 },
-      { x: 1035, y: 425 },
-      { x: 940, y: 400 },
-      { x: 945, y: 860 },
-      { x: 495, y: 860 },
-      { x: 500, y: 400 },
-      { x: 405, y: 425 },
-      { x: 320, y: 350 },
-    ],
-    230,
-  ),
-  34,
-  70,
-);
+const SHIRT_BODY: Vertex[] = [
+  { x: 430, y: 195 },
+  { x: 610, y: 165 },
+  { x: 720, y: 238 },
+  { x: 830, y: 165 },
+  { x: 1010, y: 195 },
+  { x: 1120, y: 350 },
+  { x: 1035, y: 425 },
+  { x: 940, y: 400 },
+  { x: 945, y: 860 },
+  { x: 495, y: 860 },
+  { x: 500, y: 400 },
+  { x: 405, y: 425 },
+  { x: 320, y: 350 },
+];
+const SHIRT: Shape = {
+  ...shape(shiftX(SHIRT_BODY, 230), 34, 70),
+  // Upright and centred on the phone, a little above the middle to leave
+  // room for the bottom nav.
+  portrait: shape(toLandscape(shift(SHIRT_BODY, -208, 150)), 34, 70),
+};
 
 /**
  * МАНІФЕСТ: the window covers the left half and runs off three screen edges,
@@ -184,23 +204,38 @@ const FILM = shape(
  * ЕБАУТ: a speech bubble, its tail pointing down-left toward the title in the
  * bottom-left corner.
  */
-const ABOUT = shape(
-  [
-    { x: 330, y: 230 },
-    { x: 1110, y: 230 },
-    { x: 1110, y: 760 },
-    { x: 610, y: 760 },
-    // A rounded tip from three vertices: every corner stays wide enough for
-    // its radius, so the band never folds over itself.
-    { x: 486, y: 896 },
-    { x: 446, y: 910 },
-    { x: 406, y: 892 },
-    { x: 476, y: 760 },
-    { x: 330, y: 760 },
-  ],
-  110,
-  48,
-);
+const ABOUT_BODY: Vertex[] = [
+  { x: 330, y: 230 },
+  { x: 1110, y: 230 },
+  { x: 1110, y: 760 },
+  { x: 610, y: 760 },
+  // A rounded tip from three vertices: every corner stays wide enough for
+  // its radius, so the band never folds over itself.
+  { x: 486, y: 896 },
+  { x: 446, y: 910 },
+  { x: 406, y: 892 },
+  { x: 476, y: 760 },
+  { x: 330, y: 760 },
+];
+const ABOUT: Shape = {
+  ...shape(ABOUT_BODY, 110, 48),
+  // On the phone the bubble stands upright with its tail pointing down-left.
+  portrait: shape(
+    toLandscape([
+      { x: 150, y: 330 },
+      { x: 874, y: 330 },
+      { x: 874, y: 980 },
+      { x: 600, y: 980 },
+      { x: 486, y: 1116 },
+      { x: 446, y: 1130 },
+      { x: 406, y: 1112 },
+      { x: 480, y: 980 },
+      { x: 150, y: 980 },
+    ]),
+    110,
+    48,
+  ),
+};
 
 export const SECTION_SHAPES: Record<SectionScene, Shape> = {
   shirt: SHIRT,
