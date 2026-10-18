@@ -146,9 +146,38 @@
     }
   }
 
+  /* The face link: centred on the welcome screen, docked bottom-left inside a
+     section. Both states are absolute offsets so the move animates. */
+  .face-link {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% -50%;
+    width: var(--face);
+    transition:
+      left 0.5s ease-in-out,
+      top 0.5s ease-in-out,
+      width 0.5s ease-in-out,
+      translate 0.5s ease-in-out;
+  }
+  .face-link[data-docked="true"] {
+    left: calc(56 * var(--kc));
+    top: calc(100% - 160 * var(--kc));
+    translate: 0 0;
+    width: calc(100 * var(--kc));
+  }
+  @media (orientation: portrait) {
+    .face-link[data-docked="true"] {
+      top: calc(24 * var(--kc));
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .animate-face {
       animation: none;
+    }
+    .face-link {
+      transition: none;
     }
   }
 }

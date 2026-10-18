@@ -34,6 +34,7 @@ describe('HomePage', () => {
 
   it('shows the face in the centre', async () => {
     await renderHome();
-    expect(screen.getByRole('img', { name: 'жека' })).toBeInTheDocument();
+    const face = document.querySelector('a.face-link img');
+    expect(face).toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { Outlet, useRouterState } from '@tanstack/react-router';
+import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import zheka from '@/assets/zheka.png';
 import { MobileNav, NAV_LINKS } from '@/features/nav';
@@ -36,22 +36,29 @@ export const HomeShell = () => {
         options={options}
         scene={scene}
       />
-      <img
-        src={zheka}
-        alt="жека"
-        width={3508}
-        height={3190}
-        className="animate-face absolute top-1/2 left-1/2 h-auto -translate-x-1/2 -translate-y-1/2 select-none transition-opacity duration-500"
-        style={{
-          width: 'var(--face)',
-          aspectRatio: '3508 / 3190',
-          opacity: atHome ? 1 : 0,
-          pointerEvents: atHome ? undefined : 'none',
-        }}
-        draggable={false}
-      />
+      {/* The face: centred at home, docked small in the bottom-left corner
+          inside a section, where it is the way home. */}
+      <Link
+        to="/"
+        aria-label="Додому"
+        aria-hidden={atHome}
+        tabIndex={atHome ? -1 : 0}
+        data-docked={!atHome}
+        className="face-link z-10 block select-none"
+        style={{ pointerEvents: atHome ? 'none' : undefined }}
+      >
+        <img
+          src={zheka}
+          alt=""
+          width={3508}
+          height={3190}
+          className="animate-face block h-auto w-full"
+          style={{ aspectRatio: '3508 / 3190' }}
+          draggable={false}
+        />
+      </Link>
       <Outlet />
-      {atHome ? (
+      {atHome &&
         NAV_LINKS.map((link) => (
           <CornerLink
             key={link.to}
@@ -59,11 +66,7 @@ export const HomeShell = () => {
             to={link.to}
             label={link.label}
           />
-        ))
-      ) : (
-        // Inside a section only the way home stays, in the top-left corner.
-        <CornerLink corner="tl" to="/" label="ДОДОМУ" />
-      )}
+        ))}
       {atHome && <HomeToggles value={settings} onChange={update} />}
       <MobileNav />
     </main>

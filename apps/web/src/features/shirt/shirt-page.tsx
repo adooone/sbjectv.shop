@@ -1,15 +1,16 @@
 /**
- * The t-shirts section: the frame has morphed into a shirt on the right;
- * the title and, later, the description and order button sit on the left.
+ * The t-shirts section: the frame has morphed into a shirt on the right; the
+ * title sits top-left on the ink, the description and order button will join
+ * it on the left.
  */
 export const ShirtPage = () => (
   <section
-    className="absolute flex flex-col gap-4 text-ink portrait:hidden"
+    className="absolute flex flex-col gap-3 text-paper portrait:hidden"
     style={{
-      left: 'calc(190 * var(--k))',
-      top: 'calc(190 * var(--k))',
-      width: 'calc(420 * var(--k))',
-      animation: 'fade-in 0.4s ease-out 0.3s both',
+      left: 'calc(96 * var(--kc))',
+      top: 'calc(72 * var(--kc))',
+      width: 'calc(520 * var(--k))',
+      animation: 'fade-in 0.4s ease-out 0.25s both',
     }}
   >
     <h1
@@ -19,7 +20,7 @@ export const ShirtPage = () => (
       ФУТБОЛКИ
     </h1>
     <p
-      className="font-sans text-ink/70"
+      className="font-sans text-paper/70"
       style={{ fontSize: 'calc(20 * var(--k))' }}
     >
       Скоро тут будуть дизайни.
