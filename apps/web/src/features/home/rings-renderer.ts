@@ -168,18 +168,16 @@ type Segment = { to: Vertex; c?: Vertex };
 const SHIRT_VERTICES: Vertex[] = [
   { x: 430, y: 195 },
   { x: 610, y: 165 },
-  { x: 650, y: 205 },
-  { x: 720, y: 222 },
-  { x: 790, y: 205 },
+  { x: 720, y: 238 },
   { x: 830, y: 165 },
   { x: 1010, y: 195 },
   { x: 1120, y: 350 },
-  { x: 1010, y: 410 },
-  { x: 965, y: 395 },
+  { x: 1035, y: 425 },
+  { x: 940, y: 400 },
   { x: 945, y: 860 },
   { x: 495, y: 860 },
-  { x: 475, y: 395 },
-  { x: 430, y: 410 },
+  { x: 500, y: 400 },
+  { x: 405, y: 425 },
   { x: 320, y: 350 },
 ];
 /** Corner radii: convex corners stay crisp, concave ones (collar ends, armpits)
