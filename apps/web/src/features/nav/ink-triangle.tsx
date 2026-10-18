@@ -13,6 +13,8 @@ type InkTriangleProps = {
   color: 'ink' | 'paper';
   /** Changes the wobble so neighbouring triangles don't move in lockstep. */
   seed?: number;
+  /** Fills the inside of the outline (hover state); eases in and out. */
+  filled?: boolean;
   className?: string;
 };
 
@@ -38,9 +40,17 @@ export const InkTriangle = ({
   size,
   color,
   seed = 1,
+  filled = false,
   className,
 }: InkTriangleProps) => {
   const ref = useRef<HTMLCanvasElement>(null);
+  // Read by the draw loop so a hover never restarts the animation.
+  const fillTarget = useRef(filled ? 1 : 0);
+  const redraw = useRef<() => void>(() => {});
+  useEffect(() => {
+    fillTarget.current = filled ? 1 : 0;
+    redraw.current();
+  }, [filled]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -57,6 +67,7 @@ export const InkTriangle = ({
     const direction = seed % 2 === 0 ? 1 : -1;
     const reduced = prefersReducedMotion();
     const start = performance.now();
+    let fillLevel = fillTarget.current;
 
     // Same proportions as the Figma triangle (116 × 100.5), inset so the
     // stroke and the tail stay inside the canvas.
@@ -114,8 +125,22 @@ export const InkTriangle = ({
       }
       ctx.closePath();
       ctx.fill();
+      // The inside fills on hover, easing toward the target each frame.
+      fillLevel += (fillTarget.current - fillLevel) * (reduced ? 1 : 0.25);
+      if (fillLevel > 0.01) {
+        ctx.globalAlpha = fillLevel;
+        ctx.beginPath();
+        ctx.moveTo(inner[0], inner[1]);
+        for (let j = 2; j < inner.length; j += 2) {
+          ctx.lineTo(inner[j], inner[j + 1]);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
     };
 
+    redraw.current = draw;
     draw();
     let frame = 0;
     const loop = () => {
@@ -123,7 +148,10 @@ export const InkTriangle = ({
       frame = requestAnimationFrame(loop);
     };
     if (!reduced) frame = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      redraw.current = () => {};
+    };
   }, [size, color, seed]);
 
   // The canvas fills whatever box it is given; `size` only sets the drawing
