@@ -27,7 +27,7 @@ export const MobileNav = () => {
           <Fragment key={link.to}>
             {i > 0 && (
               <span aria-hidden="true" className="block h-[18px] w-[18px]">
-                <InkTriangle size={18} color="ink" seed={10 + i} />
+                <InkTriangle size={18} color="ink" seed={10 + i} filled />
               </span>
             )}
             <Link

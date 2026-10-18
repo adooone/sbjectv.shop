@@ -26,7 +26,7 @@ export const MobileHome = ({ visible }: MobileHomeProps) => (
     }}
   >
     <span aria-hidden="true" className="block h-[14px] w-[14px]">
-      <InkTriangle size={14} color="paper" seed={30} paused={!visible} />
+      <InkTriangle size={14} color="paper" seed={30} filled paused={!visible} />
     </span>
     <span className="block py-1" style={{ transform: 'rotate(-2deg)' }}>
       ДОДОМУ
