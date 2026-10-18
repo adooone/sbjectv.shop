@@ -58,11 +58,6 @@ export type RingsOptions = {
   window: boolean;
   /** Index of the ring that becomes the window edge; rings outside it are not drawn. */
   windowRing: number;
-  /**
-   * Ink the gap between the first and second ring inside the window, so the
-   * stripes read black / white / black from the edge inward.
-   */
-  inkStripe: boolean;
   /** How much of the wobble the shirt keeps (1 = as the rings, 0 = still). */
   shirtCalm: number;
   /** Periodic glitch: colour channels split apart and a few bands tear. */
@@ -87,7 +82,6 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   thicknessWavelength: 260,
   window: true,
   windowRing: 0,
-  inkStripe: true,
   shirtCalm: 0.65,
   glitch: true,
   glitchEvery: [6, 14],
@@ -216,7 +210,7 @@ const MORPH_DIRECT_SECONDS = 0.75;
 const MORPH_DIRECT = { start: 0, end: 1, stagger: 0.45 };
 const MORPH_POINTS = 720;
 /**
- * The inside (inner rings, stripe, face) has its own choreography, in
+ * The inside (inner rings, face) has its own choreography, in
  * seconds from the moment the scene changes.
  *
  * Leaving home: each inner ring draws back a touch, then falls evenly onto
@@ -628,9 +622,6 @@ export const createRingsRenderer = (
       (1 + 0.8 * Math.sin(Math.PI * morphing));
 
     const windowRing = opts.window ? opts.windowRing : -1;
-    // Outer and inner edges per ring, kept for the stripe fill below.
-    const edges: { outer: Float64Array; inner: Float64Array; count: number }[] =
-      [];
     // The inside leaves in two stages as a section takes over: the inner
     // rings collapse one after another onto the innermost ring around the
     // face, then that ring and the face fly off screen away from the
@@ -787,7 +778,6 @@ export const createRingsRenderer = (
       outer[2 * n + 1] = outer[1];
       inner[2 * n] = inner[0];
       inner[2 * n + 1] = inner[1];
-      edges[i] = { outer, inner, count };
       if (i === windowRing) {
         // This ring becomes the window: ink from the screen edge down to the
         // ring's wobbling inner edge (even-odd fill of edge minus hole).
@@ -814,24 +804,6 @@ export const createRingsRenderer = (
     });
 
     target.globalAlpha = 1;
-    // Black stripe: from the outer edge of the first ring inside the window
-    // to the inner edge of the next one (even-odd fill of the two outlines).
-    const a = edges[windowRing + 1];
-    const b = edges[windowRing + 2];
-    if (opts.inkStripe && a && b && fade > 0) {
-      target.beginPath();
-      target.moveTo(a.outer[0], a.outer[1]);
-      for (let j = 2; j < a.count; j += 2) {
-        target.lineTo(a.outer[j], a.outer[j + 1]);
-      }
-      target.closePath();
-      target.moveTo(b.inner[0], b.inner[1]);
-      for (let j = 2; j < b.count; j += 2) {
-        target.lineTo(b.inner[j], b.inner[j + 1]);
-      }
-      target.closePath();
-      target.fill('evenodd');
-    }
 
     // Scene extras (sprocket holes) cross-fade with the morph.
     const progress = morphProgress(time);
