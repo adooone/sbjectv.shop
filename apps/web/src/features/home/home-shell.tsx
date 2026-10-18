@@ -74,7 +74,6 @@ export const HomeShell = () => {
       {/* The way home: on the same side as the section's corner, in the other
           corner, fading in once the morph has settled and out when leaving. */}
       <CornerLink
-        key={homeCorner}
         corner={homeCorner}
         to="/"
         label="ДОДОМУ"
