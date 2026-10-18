@@ -1,23 +1,39 @@
 import { useEffect, useRef } from 'react';
-import { createRingsRenderer, type RingsOptions } from './rings-renderer';
+import {
+  type RingsOptions,
+  type RingsRenderer,
+  type SceneId,
+  createRingsRenderer,
+} from './rings-renderer';
 
 type HypnoRingsProps = {
   className?: string;
   options?: Partial<RingsOptions>;
+  /** Which shape the window takes; changes animate. */
+  scene?: SceneId;
 };
 
 const prefersReducedMotion = () =>
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export const HypnoRings = ({ className, options }: HypnoRingsProps) => {
+export const HypnoRings = ({
+  className,
+  options,
+  scene = 'home',
+}: HypnoRingsProps) => {
   const ref = useRef<HTMLCanvasElement>(null);
+  const rendererRef = useRef<RingsRenderer | null>(null);
+  const sceneRef = useRef(scene);
+  sceneRef.current = scene;
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
     const renderer = createRingsRenderer(canvas, options);
     if (!renderer) return;
+    rendererRef.current = renderer;
+    renderer.setScene(sceneRef.current);
 
     const reduced = prefersReducedMotion();
     const start = performance.now();
@@ -49,8 +65,13 @@ export const HypnoRings = ({ className, options }: HypnoRingsProps) => {
       cancelAnimationFrame(frame);
       observer?.disconnect();
       if (!observer) window.removeEventListener('resize', resize);
+      rendererRef.current = null;
     };
   }, [options]);
+
+  useEffect(() => {
+    rendererRef.current?.setScene(scene);
+  }, [scene]);
 
   return <canvas ref={ref} className={className} />;
 };

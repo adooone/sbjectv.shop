@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useRouterState } from '@tanstack/react-router';
 import { Fragment } from 'react';
 import { InkEdge } from './ink-edge';
 import { InkTriangle } from './ink-triangle';
@@ -8,36 +8,39 @@ import { NAV_LINKS } from './links';
 const TILTS = [-3, 2, -2, 3];
 
 /** Bottom navigation for portrait screens; the desktop uses the corner links. */
-export const MobileNav = () => (
-  <nav
-    aria-label="Розділи"
-    className="fixed inset-x-0 bottom-0 z-10 hidden portrait:block"
-  >
-    <InkEdge className="block h-7 w-full" />
-    <div
-      className="flex items-center justify-center gap-2 bg-paper px-3 pt-1 font-display font-semibold text-ink"
-      style={{
-        paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
-        fontSize: 'clamp(11px, 3.4vw, 14px)',
-      }}
+export const MobileNav = () => {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  return (
+    <nav
+      aria-label="Розділи"
+      className="fixed inset-x-0 bottom-0 z-10 hidden portrait:block"
     >
-      {NAV_LINKS.map((link, i) => (
-        <Fragment key={link.to}>
-          {i > 0 && (
-            <span aria-hidden="true" className="block h-[18px] w-[18px]">
-              <InkTriangle size={18} color="ink" seed={10 + i} />
-            </span>
-          )}
-          <Link
-            to={link.to}
-            className="block whitespace-nowrap py-3 underline-offset-4 hover:underline focus-visible:underline"
-            activeProps={{ className: 'underline' }}
-            style={{ transform: `rotate(${TILTS[i % TILTS.length]}deg)` }}
-          >
-            {link.label}
-          </Link>
-        </Fragment>
-      ))}
-    </div>
-  </nav>
-);
+      <InkEdge className="block h-7 w-full" />
+      <div
+        className="flex items-center justify-center gap-2 bg-paper px-3 pt-1 font-display font-semibold text-ink"
+        style={{
+          paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+          fontSize: 'clamp(11px, 3.4vw, 14px)',
+        }}
+      >
+        {NAV_LINKS.map((link, i) => (
+          <Fragment key={link.to}>
+            {i > 0 && (
+              <span aria-hidden="true" className="block h-[18px] w-[18px]">
+                <InkTriangle size={18} color="ink" seed={10 + i} />
+              </span>
+            )}
+            <Link
+              to={pathname === link.to ? '/' : link.to}
+              className="block whitespace-nowrap py-3 underline-offset-4 hover:underline focus-visible:underline"
+              activeProps={{ className: 'underline' }}
+              style={{ transform: `rotate(${TILTS[i % TILTS.length]}deg)` }}
+            >
+              {link.label}
+            </Link>
+          </Fragment>
+        ))}
+      </div>
+    </nav>
+  );
+};

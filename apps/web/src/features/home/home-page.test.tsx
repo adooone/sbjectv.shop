@@ -16,7 +16,7 @@ const renderHome = async () => {
 };
 
 const PAGES = [
-  ['ОДЯГ', '/odyah'],
+  ['ФУТБОЛКИ', '/tshirts'],
   ['МАНІФЕСТ', '/manifest'],
   ['ЕБАУТ', '/about'],
   ['ФОТО', '/photojournal'],
