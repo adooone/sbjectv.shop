@@ -291,6 +291,9 @@ export const createRingsRenderer = (
   let u = 1;
   let half = DESIGN.stroke / 2;
   let outlines: Point[][] = [];
+  /** The rings' rectangles in logical px (for the inside's collapse). */
+  let rects: Ring[] = [];
+  let segmentPx = 4;
   let lengths: number[] = [];
   let geometry: Partial<Record<SceneId, SceneGeometry>> = {};
   /** Last known size, so options and quality changes can rebuild geometry. */
@@ -378,6 +381,8 @@ export const createRingsRenderer = (
     }));
     outlines = scaled.map((ring) => roundedRectOutline(ring, segment));
     lengths = scaled.map(perimeter);
+    rects = scaled;
+    segmentPx = segment;
 
     const map = (v: { x: number; y: number }) => ({
       x: v.x * sx,
@@ -567,12 +572,32 @@ export const createRingsRenderer = (
     // Outer and inner edges per ring, kept for the stripe fill below.
     const edges: { outer: Float64Array; inner: Float64Array; count: number }[] =
       [];
-    // Everything inside the window fades out as a section takes over.
-    const fade = 1 - section;
-    // The inside (inner rings, stripe) flies off screen away from the
-    // section's corner, accelerating, and flies back the same way. In
-    // portrait the screen direction is turned into the logical frame.
-    const flight = section * section;
+    // The inside leaves in two stages as a section takes over: the inner
+    // rings collapse one after another onto the innermost ring around the
+    // face, then that ring and the face fly off screen away from the
+    // section's corner, accelerating. Going home plays it backwards: fly in,
+    // then spread out. `leaving` is 0 at home and 1 in a section.
+    const raw =
+      morphStart < 0 ? 1 : clamp01((time - morphStart) / morphSeconds());
+    const leaving =
+      morphStart < 0
+        ? scene === 'home'
+          ? 0
+          : 1
+        : morphTo === 'home'
+          ? 1 - raw
+          : morphFrom === 'home'
+            ? raw
+            : 1;
+    const collapseOf = (i: number) => {
+      // Ring 1 (just inside the window) starts first, the next a bit later.
+      const delay = (i - windowRing - 1) * 0.12;
+      return easeInOut(clamp01((leaving - delay) / 0.5));
+    };
+    const flightRaw = clamp01((leaving - 0.5) / 0.5);
+    const flight = flightRaw * flightRaw * flightRaw;
+    const fade = flight >= 1 ? 0 : 1;
+    // In portrait the screen direction is turned into the logical frame.
     const dir = portrait ? { x: exitDir.y, y: -exitDir.x } : exitDir;
     const shiftX = dir.x * width * 1.2 * flight;
     const shiftY = dir.y * height * 1.2 * flight;
@@ -581,9 +606,25 @@ export const createRingsRenderer = (
       y: exitDir.y * viewH * 1.2 * flight,
     };
     const win = windowPath(time);
-    const rings = outlines.map((points, i) =>
-      i === windowRing ? win : { points, length: lengths[i] },
-    );
+    const innermost = rects[rects.length - 1];
+    const rings = outlines.map((points, i) => {
+      if (i === windowRing) return win;
+      const t = i > windowRing && i < rects.length - 1 ? collapseOf(i) : 0;
+      if (t <= 0 || !innermost) return { points, length: lengths[i] };
+      // Tween this ring's rectangle onto the innermost one.
+      const r = rects[i];
+      const rect = {
+        x: r.x + (innermost.x - r.x) * t,
+        y: r.y + (innermost.y - r.y) * t,
+        w: r.w + (innermost.w - r.w) * t,
+        h: r.h + (innermost.h - r.h) * t,
+        r: r.r + (innermost.r - r.r) * t,
+      };
+      return {
+        points: roundedRectOutline(rect, segmentPx),
+        length: perimeter(rect),
+      };
+    });
 
     rings.forEach(({ points, length }, i) => {
       // Rings outside the window edge would be ink on ink.
