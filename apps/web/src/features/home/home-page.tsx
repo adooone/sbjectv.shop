@@ -1,35 +1,19 @@
-import { type CSSProperties, useMemo } from 'react';
+import { useMemo } from 'react';
 import zheka from '@/assets/zheka.png';
 import { MobileNav, NAV_LINKS } from '@/features/nav';
 import { CornerLink } from './corner-link';
-import { HomeToggles, useHomeSettings } from './edge-toggle';
 import { HypnoRings } from './hypno-rings';
+import { HomeToggles, useHomeSettings } from './home-toggles';
 
 export const HomePage = () => {
   const [settings, update] = useHomeSettings();
-  const { edge, stripe } = settings;
   const options = useMemo(
-    () => ({ windowRing: edge === 'oval' ? 0 : 1, inkStripe: stripe }),
-    [edge, stripe],
+    () => ({ inkStripe: settings.stripe }),
+    [settings.stripe],
   );
 
   return (
-    <main
-      className="home relative h-dvh w-full overflow-hidden bg-paper text-ink"
-      style={
-        {
-          // The rectangle window leaves bigger black corners, so the corner
-          // links move inward to keep their distance from the edge.
-          '--corner-inset': edge === 'rect' ? 'calc(24 * var(--kc))' : '0px',
-          // Portrait design scale: the frame's long side spans the height and
-          // the window ring (815 or 1024 px plus the 30 px stroke) the width.
-          '--k-portrait':
-            edge === 'rect'
-              ? 'min(100vh / 1440, 100vw / 845)'
-              : 'min(100vh / 1440, 100vw / 1054)',
-        } as CSSProperties
-      }
-    >
+    <main className="home relative h-dvh w-full overflow-hidden bg-paper text-ink">
       <h1 className="sr-only">sbjectv</h1>
       <HypnoRings
         className="absolute inset-0 block h-full w-full"

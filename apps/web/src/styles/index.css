@@ -122,14 +122,17 @@
     /* Corner links never shrink below half size, so labels stay readable on phones. */
     --kc: max(var(--k), 0.5px);
     --face: calc(139 * var(--k));
+    /* The window leaves big black corners, so the corner links sit a bit inward. */
+    --corner-inset: calc(24 * var(--kc));
   }
 
   /* Portrait phones show the desktop composition turned 90°, so the design
      scale swaps the axes; only the corner links need a floor. */
   @media (orientation: portrait) {
     .home {
-      /* Set by the home page: the window ring (plus stroke) spans the width. */
-      --k: var(--k-portrait, min(100vh / 1440, 100vw / 1024));
+      /* The frame's long side spans the height; the window rectangle (815 px
+         plus the 30 px stroke) spans the width. */
+      --k: min(100vh / 1440, 100vw / 845);
       --kc: max(var(--k), 0.6px);
     }
   }

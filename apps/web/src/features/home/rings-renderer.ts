@@ -3,8 +3,9 @@ import { createNoise2D } from 'simplex-noise';
 /**
  * Hypnotic concentric rings, drawn on a 2D canvas.
  *
- * Geometry comes from the Figma frame "Desktop - 1" (1440 × 1024): five
- * rounded rectangles with a 30px stroke. Each ring is sampled into points along
+ * Geometry comes from the Figma frame "Desktop - 1" (1440 × 1024): its four
+ * rounded rectangles with a 30px stroke (the frame's outer oval is dropped;
+ * the first rectangle is the window edge). Each ring is sampled into points along
  * its perimeter; every frame each point is pushed along its outward normal by
  * simplex noise that travels along the path, which makes the hand-drawn wobble
  * flow around the ring. Each ring is filled as a band whose width also varies
@@ -17,7 +18,6 @@ export type Ring = { x: number; y: number; w: number; h: number; r: number };
 export const DESIGN = { width: 1440, height: 1024, stroke: 30 } as const;
 
 export const RINGS: readonly Ring[] = [
-  { x: 0, y: 0, w: 1440, h: 1024, r: 512 },
   { x: 146, y: 103, w: 1146, h: 815, r: 90 },
   { x: 298, y: 212, w: 841, h: 598, r: 89 },
   { x: 460, y: 327, w: 518, h: 368, r: 103 },
@@ -76,10 +76,10 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   thickness: 0.35,
   thicknessWavelength: 260,
   window: true,
-  windowRing: 1,
+  windowRing: 0,
   inkStripe: true,
   glitch: true,
-  glitchEvery: [2, 6],
+  glitchEvery: [6, 14],
   glitchDuration: 0.3,
   glitchShift: 6,
 };
@@ -360,7 +360,7 @@ export const createRingsRenderer = (
   };
 
   // Glitch schedule and scratch canvases (created on first use).
-  let glitchAt = 2 + Math.random() * 4;
+  let glitchAt = 7 + Math.random() * 6;
   let glitchUntil = -1;
   let scene: HTMLCanvasElement | null = null;
   let tint: HTMLCanvasElement | null = null;
