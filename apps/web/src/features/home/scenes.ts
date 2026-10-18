@@ -85,6 +85,13 @@ export const sampleSegments = (
       len += Math.hypot(p.x - prev.x, p.y - prev.y);
       prev = p;
     }
+    // A corner radius clamped to half an edge leaves a zero-length segment
+    // between two arcs; it has no tangent, so skip it rather than emit a
+    // point with a zero normal (that point would spike into the band).
+    if (len < 1e-3) {
+      from = to;
+      continue;
+    }
     const steps = Math.max(1, Math.round(len / segment));
     for (let i = 0; i < steps; i++) {
       const t = i / steps;
@@ -182,12 +189,13 @@ const ABOUT = shape(
     { x: 330, y: 230 },
     { x: 1110, y: 230 },
     { x: 1110, y: 760 },
-    { x: 600, y: 760 },
-    // A blunt tip: two close vertices keep every corner obtuse, so the band
-    // never folds over itself.
-    { x: 460, y: 904 },
-    { x: 420, y: 898 },
-    { x: 480, y: 760 },
+    { x: 610, y: 760 },
+    // A rounded tip from three vertices: every corner stays wide enough for
+    // its radius, so the band never folds over itself.
+    { x: 486, y: 896 },
+    { x: 446, y: 910 },
+    { x: 406, y: 892 },
+    { x: 476, y: 760 },
     { x: 330, y: 760 },
   ],
   110,
