@@ -50,9 +50,10 @@ const INK_BOX = 96;
 const CORNER_SEEDS: Record<Corner, number> = { tl: 1, tr: 2, bl: 3, br: 4 };
 
 /**
- * corner: as on the welcome screen. title: the label unrolls into the
- * section title (top-left, upright, larger) and the triangle fades.
- * hidden: fades out but stays mounted so it can come back.
+ * corner: as on the welcome screen. title: the label stands as the section
+ * title (upright, larger, no triangle). hidden: faded out but mounted.
+ * Hiding is immediate; appearing waits `appearDelay` seconds, so titles and
+ * the way home show up only after the scene has settled.
  */
 export type CornerMode = 'corner' | 'title' | 'hidden';
 /** diagonal: tilted along the corner, as in Figma. row: upright text with the
@@ -68,6 +69,8 @@ type CornerLinkProps = {
   to: LinkProps['to'];
   mode?: CornerMode;
   layout?: CornerLayout;
+  /** Seconds to wait before fading in (0 by default). */
+  appearDelay?: number;
   /** paper: white on ink (default). ink: black, for corners on white paper. */
   tone?: 'paper' | 'ink';
 };
@@ -78,6 +81,7 @@ export const CornerLink = ({
   to,
   mode = 'corner',
   layout = 'diagonal',
+  appearDelay = 0,
   tone = 'paper',
 }: CornerLinkProps) => {
   const { triangle: tri, label: text } = PLACEMENTS[corner];
@@ -96,8 +100,8 @@ export const CornerLink = ({
     height: px(230),
     opacity: mode === 'hidden' ? 0 : 1,
     pointerEvents: mode === 'corner' ? undefined : 'none',
-    // Appearing waits for the morph to settle a little; hiding is immediate.
-    transition: `opacity 0.35s ease-in-out ${mode === 'corner' ? '0.25s' : '0s'}`,
+    // Appearing waits for the scene to settle; hiding is immediate.
+    transition: `opacity 0.4s ease-in-out ${mode === 'hidden' ? '0s' : `${appearDelay}s`}`,
   };
   const shift = (FIGMA_BOX - INK_BOX) / 2;
   const row = layout === 'row';
@@ -145,9 +149,6 @@ export const CornerLink = ({
             fontSize: px(30),
             transform: `translate(${edge.x === 'left' ? '-50%' : '50%'}, ${edge.y === 'top' ? '-50%' : '50%'}) rotate(${text.rotate}deg)`,
           };
-  // The label glides between its corner pose and the title pose.
-  labelStyle.transition =
-    'left 0.3s ease-in-out, top 0.3s ease-in-out, right 0.3s ease-in-out, bottom 0.3s ease-in-out, transform 0.3s ease-in-out, font-size 0.3s ease-in-out';
 
   return (
     <Link
