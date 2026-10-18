@@ -169,15 +169,27 @@ const SHIRT: Shape = {
  * МАНІФЕСТ: the window covers the left half and runs off three screen edges,
  * so only its right edge shows: a wavy line splitting white from black.
  */
-const MANIFEST = shape(
-  [
-    { x: -300, y: -300 },
-    { x: 720, y: -300 },
-    { x: 720, y: 1324 },
-    { x: -300, y: 1324 },
-  ],
-  80,
-);
+const MANIFEST: Shape = {
+  ...shape(
+    [
+      { x: -300, y: -300 },
+      { x: 720, y: -300 },
+      { x: 720, y: 1324 },
+      { x: -300, y: 1324 },
+    ],
+    80,
+  ),
+  // On the phone the paper is the bottom half, ink above, wavy line between.
+  portrait: shape(
+    toLandscape([
+      { x: -300, y: 720 },
+      { x: 1324, y: 720 },
+      { x: 1324, y: 1740 },
+      { x: -300, y: 1740 },
+    ]),
+    80,
+  ),
+};
 
 /**
  * ФОТО: a strip of film running through the frame, off both sides, with
