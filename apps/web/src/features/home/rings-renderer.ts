@@ -325,20 +325,21 @@ const renormalize = (points: Point[]): void => {
  * outline starts with its own delay: first the rectangle pours onto the
  * shirt's footprint from left to right, then the shirt grows out of that box
  * from the collar down, settling with a small overshoot. Going home is one
- * stage straight back to the window rectangle.
+ * stage straight back to the window rectangle, unwinding from the hem up and
+ * from right to left.
  */
 const MORPH_SECONDS = 1.0;
 /** Stage windows as fractions of MORPH_SECONDS; stagger = share of the
  * stage spent spreading the start across the outline. */
 const MORPH_SLIDE = { start: 0, end: 0.55, stagger: 0.35 };
 const MORPH_SHAPE = { start: 0.32, end: 1, stagger: 0.45 };
-const MORPH_HOME_SECONDS = 0.6;
+const MORPH_HOME_SECONDS = 0.75;
+const MORPH_HOME = { start: 0, end: 1, stagger: 0.45 };
 const MORPH_POINTS = 720;
 /** Smootherstep: zero velocity and acceleration at both ends, no kinks. */
 const easeInOut = (p: number) => p * p * p * (p * (p * 6 - 15) + 10);
 /** Eases out with a gentle overshoot, like something settling into place. */
-const easeOutBack = (p: number) => {
-  const c1 = 1.1;
+const easeOutBack = (p: number, c1 = 1.1) => {
   const c3 = c1 + 1;
   return 1 + c3 * (p - 1) ** 3 + c1 * (p - 1) ** 2;
 };
@@ -399,6 +400,7 @@ export const createRingsRenderer = (
   /** Per-point start delays (0..1): slide runs left→right, shape top→down. */
   let slideKey: number[] = [];
   let shapeKey: number[] = [];
+  let homeKey: number[] = [];
   let scene: SceneId = 'home';
   let pendingScene: SceneId = 'home';
   let morphStart = -1;
@@ -468,6 +470,12 @@ export const createRingsRenderer = (
     const hb = bounds(homeR);
     slideKey = homeR.map((p) => (p.x - hb.x) / (hb.w || 1));
     shapeKey = shirtR.map((p) => (p.y - b.y) / (b.h || 1));
+    // Home: the hem and the right side let go first.
+    homeKey = shirtR.map(
+      (p) =>
+        0.6 * (1 - (p.y - b.y) / (b.h || 1)) +
+        0.4 * (1 - (p.x - b.x) / (b.w || 1)),
+    );
   };
 
   /** 0 = home rectangle, 1 = shirt, in between while morphing. */
@@ -486,9 +494,10 @@ export const createRingsRenderer = (
     elapsed: number,
     stage: { start: number; end: number; stagger: number },
     key: number,
+    total: number = MORPH_SECONDS,
   ): number => {
-    const duration = (stage.end - stage.start) * MORPH_SECONDS;
-    const start = stage.start * MORPH_SECONDS + key * stage.stagger * duration;
+    const duration = (stage.end - stage.start) * total;
+    const start = stage.start * total + key * stage.stagger * duration;
     return clamp01((elapsed - start) / ((1 - stage.stagger) * duration));
   };
 
@@ -506,10 +515,13 @@ export const createRingsRenderer = (
     const length = home.length + (shirt.length - home.length) * overall;
     let points: Point[];
     if (morphTo === 'home') {
-      // One stage straight back to the window rectangle.
-      const t = easeInOut(elapsed / MORPH_HOME_SECONDS);
+      // One stage straight back to the window rectangle, point by point.
       points = shirtR.map((p, j) => {
         const q = homeR[j];
+        const t = easeOutBack(
+          stageProgress(elapsed, MORPH_HOME, homeKey[j], MORPH_HOME_SECONDS),
+          0.5,
+        );
         return {
           x: p.x + (q.x - p.x) * t,
           y: p.y + (q.y - p.y) * t,
@@ -555,10 +567,8 @@ export const createRingsRenderer = (
     const amp = opts.amplitude * u;
     // The window edge wobbles less the more it is a shirt.
     const morphing =
-      morphStart >= 0 &&
-      time - morphStart < morphSeconds() &&
-      morphTo === 'shirt'
-        ? (time - morphStart) / MORPH_SECONDS
+      morphStart >= 0 && time - morphStart < morphSeconds()
+        ? (time - morphStart) / morphSeconds()
         : 0;
     // The ink gets excited while it reshapes, then calms down into the shirt.
     const windowAmp =
