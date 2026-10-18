@@ -1,5 +1,5 @@
 import { Link, type LinkProps, useRouterState } from '@tanstack/react-router';
-import type { CSSProperties } from 'react';
+import { type CSSProperties, useState } from 'react';
 import { InkTriangle } from '@/features/nav/ink-triangle';
 
 export type Corner = 'tl' | 'tr' | 'bl' | 'br';
@@ -82,6 +82,8 @@ export const CornerLink = ({
   // The corner of the section you are in leads back home.
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const active = pathname === to;
+  // Hover or keyboard focus fills the triangle instead of underlining.
+  const [hot, setHot] = useState(false);
 
   // --corner-inset (index.css) pushes the whole corner group inward.
   const box: CSSProperties = {
@@ -91,7 +93,8 @@ export const CornerLink = ({
     height: px(230),
     opacity: mode === 'hidden' ? 0 : 1,
     pointerEvents: mode === 'corner' ? undefined : 'none',
-    transition: 'opacity 0.35s ease-in-out',
+    // Appearing waits for the morph to settle a little; hiding is immediate.
+    transition: `opacity 0.35s ease-in-out ${mode === 'corner' ? '0.25s' : '0s'}`,
   };
   const shift = (FIGMA_BOX - INK_BOX) / 2;
   const row = layout === 'row';
@@ -150,17 +153,22 @@ export const CornerLink = ({
       tabIndex={mode === 'corner' ? 0 : -1}
       className="group absolute block overflow-visible outline-none portrait:hidden"
       style={box}
+      onMouseEnter={() => setHot(true)}
+      onMouseLeave={() => setHot(false)}
+      onFocus={() => setHot(true)}
+      onBlur={() => setHot(false)}
     >
       <span className="absolute block" style={triangleStyle} aria-hidden="true">
         <InkTriangle
           size={INK_BOX}
           color="paper"
           seed={CORNER_SEEDS[corner]}
+          filled={hot && mode === 'corner'}
           className="block h-full w-full"
         />
       </span>
       <span
-        className={`absolute block whitespace-nowrap font-display font-semibold text-paper leading-none underline-offset-4 group-hover:underline group-focus-visible:underline ${active && mode === 'corner' ? 'underline' : ''}`}
+        className="absolute block whitespace-nowrap font-display font-semibold text-paper leading-none"
         style={labelStyle}
       >
         {label}

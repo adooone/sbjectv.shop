@@ -13,10 +13,13 @@ type InkTriangleProps = {
   color: 'ink' | 'paper';
   /** Changes the wobble so neighbouring triangles don't move in lockstep. */
   seed?: number;
+  /** Fills the inside of the outline (hover state); eases in and out. */
+  filled?: boolean;
   className?: string;
 };
 
 const TAU = Math.PI * 2;
+const FILL_SECONDS = 0.35;
 
 // Deterministic PRNG so each triangle keeps its own character between renders.
 const mulberry32 = (seed: number) => {
@@ -38,9 +41,17 @@ export const InkTriangle = ({
   size,
   color,
   seed = 1,
+  filled = false,
   className,
 }: InkTriangleProps) => {
   const ref = useRef<HTMLCanvasElement>(null);
+  // Read by the draw loop so a hover never restarts the animation.
+  const fillTarget = useRef(filled ? 1 : 0);
+  const redraw = useRef<() => void>(() => {});
+  useEffect(() => {
+    fillTarget.current = filled ? 1 : 0;
+    redraw.current();
+  }, [filled]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -57,6 +68,10 @@ export const InkTriangle = ({
     const direction = seed % 2 === 0 ? 1 : -1;
     const reduced = prefersReducedMotion();
     const start = performance.now();
+    // Fill level moves linearly toward its target over FILL_SECONDS and is
+    // eased when drawn, so hovering reads as a soft pour, not a flash.
+    let fillLevel = fillTarget.current;
+    let lastTime = start;
 
     // Same proportions as the Figma triangle (116 × 100.5), inset so the
     // stroke and the tail stay inside the canvas.
@@ -114,8 +129,29 @@ export const InkTriangle = ({
       }
       ctx.closePath();
       ctx.fill();
+      const now = performance.now();
+      const dt = Math.min(0.1, (now - lastTime) / 1000);
+      lastTime = now;
+      const step = reduced ? 1 : dt / FILL_SECONDS;
+      fillLevel =
+        fillTarget.current > fillLevel
+          ? Math.min(fillTarget.current, fillLevel + step)
+          : Math.max(fillTarget.current, fillLevel - step);
+      if (fillLevel > 0.001) {
+        const l = fillLevel;
+        ctx.globalAlpha = l * l * l * (l * (l * 6 - 15) + 10);
+        ctx.beginPath();
+        ctx.moveTo(inner[0], inner[1]);
+        for (let j = 2; j < inner.length; j += 2) {
+          ctx.lineTo(inner[j], inner[j + 1]);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
     };
 
+    redraw.current = draw;
     draw();
     let frame = 0;
     const loop = () => {
@@ -123,7 +159,10 @@ export const InkTriangle = ({
       frame = requestAnimationFrame(loop);
     };
     if (!reduced) frame = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      redraw.current = () => {};
+    };
   }, [size, color, seed]);
 
   // The canvas fills whatever box it is given; `size` only sets the drawing

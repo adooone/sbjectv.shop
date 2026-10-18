@@ -71,20 +71,16 @@ export const HomeShell = () => {
           mode={atHome ? 'corner' : pathname === link.to ? 'title' : 'hidden'}
         />
       ))}
-      {!atHome && (
-        <div
-          key={homeCorner}
-          style={{ animation: 'fade-in 0.4s ease-out 0.3s both' }}
-        >
-          <CornerLink
-            corner={homeCorner}
-            to="/"
-            label="ДОДОМУ"
-            // Above the film strip there is only a thin black band.
-            layout={scene === 'film' ? 'row' : 'diagonal'}
-          />
-        </div>
-      )}
+      {/* The way home: on the same side as the section's corner, in the other
+          corner, fading in once the morph has settled and out when leaving. */}
+      <CornerLink
+        corner={homeCorner}
+        to="/"
+        label="ДОДОМУ"
+        mode={atHome ? 'hidden' : 'corner'}
+        // Above the film strip there is only a thin black band.
+        layout={scene === 'film' ? 'row' : 'diagonal'}
+      />
       {atHome && <HomeToggles value={settings} onChange={update} />}
       <MobileNav />
     </main>
