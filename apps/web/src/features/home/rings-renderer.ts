@@ -55,6 +55,8 @@ export type RingsOptions = {
    * stripes read black / white / black from the edge inward.
    */
   inkStripe: boolean;
+  /** How much of the wobble the shirt keeps (1 = as the rings, 0 = still). */
+  shirtCalm: number;
   /** Periodic glitch: colour channels split apart and a few bands tear. */
   glitch: boolean;
   /** Seconds between glitches, picked at random in this range. */
@@ -78,6 +80,7 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   window: true,
   windowRing: 0,
   inkStripe: true,
+  shirtCalm: 0.4,
   glitch: true,
   glitchEvery: [6, 14],
   glitchDuration: 0.3,
@@ -159,23 +162,62 @@ type Segment = { to: Vertex; c?: Vertex };
 /**
  * A plain t-shirt silhouette in the Figma frame, clockwise from the left
  * shoulder (the point that matches the rectangle's top-left corner, so the
- * morph twists as little as possible).
+ * morph twists as little as possible). The collar is a few points along a
+ * curve; every corner is then rounded so the ink band has no sharp joins.
  */
-export const SHIRT_START: Vertex = { x: 430, y: 195 };
-export const SHIRT: Segment[] = [
-  { to: { x: 610, y: 165 } },
-  { c: { x: 720, y: 275 }, to: { x: 830, y: 165 } },
-  { to: { x: 1010, y: 195 } },
-  { to: { x: 1120, y: 350 } },
-  { to: { x: 1010, y: 410 } },
-  { to: { x: 965, y: 395 } },
-  { to: { x: 945, y: 860 } },
-  { to: { x: 495, y: 860 } },
-  { to: { x: 475, y: 395 } },
-  { to: { x: 430, y: 410 } },
-  { to: { x: 320, y: 350 } },
-  { to: SHIRT_START },
+const SHIRT_VERTICES: Vertex[] = [
+  { x: 430, y: 195 },
+  { x: 610, y: 165 },
+  { x: 650, y: 205 },
+  { x: 720, y: 222 },
+  { x: 790, y: 205 },
+  { x: 830, y: 165 },
+  { x: 1010, y: 195 },
+  { x: 1120, y: 350 },
+  { x: 1010, y: 410 },
+  { x: 965, y: 395 },
+  { x: 945, y: 860 },
+  { x: 495, y: 860 },
+  { x: 475, y: 395 },
+  { x: 430, y: 410 },
+  { x: 320, y: 350 },
 ];
+const SHIRT_CORNER = 34;
+
+/**
+ * Rounds every corner of a closed polygon: each vertex becomes a quadratic
+ * curve between two points `radius` back along its edges (clamped to half an
+ * edge), with the vertex as the control point.
+ */
+export const roundedShape = (
+  vertices: Vertex[],
+  radius: number,
+): { start: Vertex; segments: Segment[] } => {
+  const n = vertices.length;
+  const cut = vertices.map((v, i) => {
+    const p = vertices[(i + n - 1) % n];
+    const q = vertices[(i + 1) % n];
+    const lp = Math.hypot(p.x - v.x, p.y - v.y);
+    const lq = Math.hypot(q.x - v.x, q.y - v.y);
+    const d = Math.min(radius, lp / 2, lq / 2);
+    return {
+      v,
+      in: { x: v.x + ((p.x - v.x) / lp) * d, y: v.y + ((p.y - v.y) / lp) * d },
+      out: { x: v.x + ((q.x - v.x) / lq) * d, y: v.y + ((q.y - v.y) / lq) * d },
+    };
+  });
+  const segments: Segment[] = [];
+  for (let i = 1; i <= n; i++) {
+    const k = cut[i % n];
+    segments.push({ to: k.in });
+    segments.push({ c: k.v, to: k.out });
+  }
+  return { start: cut[0].out, segments };
+};
+
+const SHIRT_SHAPE = roundedShape(SHIRT_VERTICES, SHIRT_CORNER);
+export const SHIRT_START: Vertex = SHIRT_SHAPE.start;
+export const SHIRT: Segment[] = SHIRT_SHAPE.segments;
 
 /** Samples a closed path of lines and quadratic curves, clockwise. */
 export const sampleSegments = (
@@ -413,6 +455,8 @@ export const createRingsRenderer = (
     const cx = width / 2;
     const cy = height / 2;
     const amp = opts.amplitude * u;
+    // The window edge wobbles less the more it is a shirt.
+    const windowAmp = amp * (1 - (1 - opts.shirtCalm) * shirtness(time));
 
     const windowRing = opts.window ? opts.windowRing : -1;
     // Outer and inner edges per ring, kept for the stripe fill below.
@@ -462,7 +506,7 @@ export const createRingsRenderer = (
         const sin = Math.sin(theta);
         // Two octaves: a fine ripple plus a slower, larger swell for a hand-drawn feel.
         const d =
-          amp *
+          (i === windowRing ? windowAmp : amp) *
           (0.55 * noise(r1 * cos + ox, r1 * sin + oy) +
             0.75 * noise(r2 * cos + ox + 40, r2 * sin + oy + 40));
         // Thickness swells slowly along the path and travels with the flow.
