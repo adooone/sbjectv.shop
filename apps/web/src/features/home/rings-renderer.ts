@@ -80,7 +80,7 @@ export const DEFAULT_OPTIONS: RingsOptions = {
   window: true,
   windowRing: 0,
   inkStripe: true,
-  shirtCalm: 0.4,
+  shirtCalm: 0.65,
   glitch: true,
   glitchEvery: [6, 14],
   glitchDuration: 0.3,
@@ -184,8 +184,8 @@ const SHIRT_VERTICES: Vertex[] = [
  * get a wide radius so the inner edge of the band never folds over itself. */
 const SHIRT_CORNER = 34;
 const SHIRT_CONCAVE_CORNER = 70;
-/** The shirt sits left of centre so the section's text fits on the right. */
-export const SHIRT_OFFSET_X = -230;
+/** The shirt sits right of centre so the section's text fits on the left. */
+export const SHIRT_OFFSET_X = 230;
 
 /**
  * Rounds every corner of a closed polygon: each vertex becomes a quadratic
