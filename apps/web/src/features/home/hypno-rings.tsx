@@ -1,5 +1,11 @@
 import { useEffect, useRef } from 'react';
 import {
+  cappedDpr,
+  createClock,
+  prefersReducedMotion,
+  subscribeTick,
+} from '@/lib/ticker';
+import {
   type RingsOptions,
   type RingsRenderer,
   type SceneId,
@@ -13,9 +19,14 @@ type HypnoRingsProps = {
   scene?: SceneId;
 };
 
-const prefersReducedMotion = () =>
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/**
+ * Frame pacing thresholds for adaptive quality: sustained slow frames lower
+ * the detail (fewer points, fewer pixels), sustained fast ones restore it.
+ */
+const SLOW_FRAME_MS = 22;
+const FAST_FRAME_MS = 12;
+const SLOW_FRAMES_TO_DROP = 45;
+const FAST_FRAMES_TO_RAISE = 240;
 
 export const HypnoRings = ({
   className,
@@ -26,26 +37,24 @@ export const HypnoRings = ({
   const rendererRef = useRef<RingsRenderer | null>(null);
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    const renderer = createRingsRenderer(canvas, options);
+    const renderer = createRingsRenderer(canvas, optionsRef.current);
     if (!renderer) return;
     rendererRef.current = renderer;
     renderer.setScene(sceneRef.current);
 
     const reduced = prefersReducedMotion();
     const start = performance.now();
-    const now = () => (reduced ? 0 : (performance.now() - start) / 1000);
+    const clock = createClock(reduced);
 
     const resize = () => {
-      renderer.resize(
-        canvas.clientWidth,
-        canvas.clientHeight,
-        window.devicePixelRatio || 1,
-      );
-      renderer.draw(now());
+      renderer.resize(canvas.clientWidth, canvas.clientHeight, cappedDpr());
+      renderer.draw(clock.now());
     };
 
     resize();
@@ -54,24 +63,54 @@ export const HypnoRings = ({
     observer?.observe(canvas);
     if (!observer) window.addEventListener('resize', resize);
 
-    let frame = 0;
-    const loop = () => {
-      renderer.draw(now());
-      frame = requestAnimationFrame(loop);
+    // Adaptive quality from the frame interval the browser actually gives us.
+    let quality: 0 | 1 | 2 = 0;
+    let lastNow = start;
+    let slow = 0;
+    let fast = 0;
+    const tick = (now: number) => {
+      const interval = now - lastNow;
+      lastNow = now;
+      if (interval > SLOW_FRAME_MS) {
+        slow++;
+        fast = 0;
+      } else if (interval < FAST_FRAME_MS) {
+        fast++;
+        slow = 0;
+      } else {
+        slow = 0;
+        fast = 0;
+      }
+      if (slow >= SLOW_FRAMES_TO_DROP && quality < 2) {
+        quality = quality === 0 ? 1 : 2;
+        slow = 0;
+        renderer.setQuality(quality);
+      } else if (fast >= FAST_FRAMES_TO_RAISE && quality > 0) {
+        quality = quality === 2 ? 1 : 0;
+        fast = 0;
+        renderer.setQuality(quality);
+      }
+      renderer.draw(clock.tick(now));
     };
-    if (!reduced) frame = requestAnimationFrame(loop);
+    const unsubscribe = reduced ? null : subscribeTick(tick);
 
     return () => {
-      cancelAnimationFrame(frame);
+      unsubscribe?.();
       observer?.disconnect();
       if (!observer) window.removeEventListener('resize', resize);
       rendererRef.current = null;
     };
-  }, [options]);
+  }, []);
 
   useEffect(() => {
     rendererRef.current?.setScene(scene);
   }, [scene]);
+
+  // Option changes (the stripe switch) update the live renderer in place, so
+  // the wobble and any running morph are not reset.
+  useEffect(() => {
+    if (options) rendererRef.current?.setOptions(options);
+  }, [options]);
 
   return <canvas ref={ref} className={className} />;
 };

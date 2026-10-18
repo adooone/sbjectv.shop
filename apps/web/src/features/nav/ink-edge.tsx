@@ -1,9 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { createNoise2D } from 'simplex-noise';
+import {
+  cappedDpr,
+  createClock,
+  observeVisible,
+  prefersReducedMotion,
+  subscribeTick,
+} from '@/lib/ticker';
 
 /**
  * The torn top edge of the mobile nav: a hand-drawn black line that wobbles
  * like the rings, with white paper below it so the rings behind are covered.
+ * Shares the page's animation loop and stops while off screen.
  */
 
 type InkEdgeProps = {
@@ -14,10 +22,6 @@ const BAND = 7;
 const AMPLITUDE = 5;
 const WAVELENGTH = 90;
 const FLOW = 18;
-
-const prefersReducedMotion = () =>
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export const InkEdge = ({ className }: InkEdgeProps) => {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -30,7 +34,7 @@ export const InkEdge = ({ className }: InkEdgeProps) => {
 
     const noise = createNoise2D();
     const reduced = prefersReducedMotion();
-    const start = performance.now();
+    const clock = createClock(reduced);
     let width = 0;
     let height = 0;
 
@@ -42,8 +46,8 @@ export const InkEdge = ({ className }: InkEdgeProps) => {
       );
     };
 
-    const draw = () => {
-      const t = reduced ? 0 : (performance.now() - start) / 1000;
+    const draw = (now: number) => {
+      const t = clock.tick(now);
       ctx.clearRect(0, 0, width, height);
       const step = 3;
       // Paper below the edge.
@@ -59,32 +63,33 @@ export const InkEdge = ({ className }: InkEdgeProps) => {
       // Ink line with slightly varying thickness.
       ctx.fillStyle = '#000';
       ctx.beginPath();
-      const top: number[] = [];
-      const bottom: number[] = [];
+      let first = true;
       for (let x = 0; x <= width + step; x += step) {
         const y = edgeAt(x, t);
         const w =
           (BAND / 2) * (1 + 0.35 * noise((x - t * FLOW * 0.4) / 240, 20));
-        top.push(x, y - w);
-        bottom.push(x, y + w);
+        if (first) ctx.moveTo(x, y - w);
+        else ctx.lineTo(x, y - w);
+        first = false;
       }
-      ctx.moveTo(top[0], top[1]);
-      for (let i = 2; i < top.length; i += 2) ctx.lineTo(top[i], top[i + 1]);
-      for (let i = bottom.length - 2; i >= 0; i -= 2) {
-        ctx.lineTo(bottom[i], bottom[i + 1]);
+      for (let x = width + step; x >= 0; x -= step) {
+        const y = edgeAt(x, t);
+        const w =
+          (BAND / 2) * (1 + 0.35 * noise((x - t * FLOW * 0.4) / 240, 20));
+        ctx.lineTo(x, y + w);
       }
       ctx.closePath();
       ctx.fill();
     };
 
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = cappedDpr();
       width = canvas.clientWidth;
       height = canvas.clientHeight;
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      draw();
+      draw(performance.now());
     };
 
     resize();
@@ -93,15 +98,19 @@ export const InkEdge = ({ className }: InkEdgeProps) => {
     observer?.observe(canvas);
     if (!observer) window.addEventListener('resize', resize);
 
-    let frame = 0;
-    const loop = () => {
-      draw();
-      frame = requestAnimationFrame(loop);
-    };
-    if (!reduced) frame = requestAnimationFrame(loop);
+    let unsubscribe: (() => void) | null = null;
+    const stopObserving = observeVisible(canvas, (visible) => {
+      if (visible && !reduced && !unsubscribe)
+        unsubscribe = subscribeTick(draw);
+      if (!visible && unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
+    });
 
     return () => {
-      cancelAnimationFrame(frame);
+      unsubscribe?.();
+      stopObserving();
       observer?.disconnect();
       if (!observer) window.removeEventListener('resize', resize);
     };
