@@ -96,7 +96,7 @@ export const CornerLink = ({
     height: px(INK_BOX),
     transform: `rotate(${tri.rotate}deg)`,
     opacity: mode === 'title' ? 0 : 1,
-    transition: 'opacity 0.3s ease-in-out',
+    transition: 'opacity 0.2s ease-in-out',
   };
   // The label is anchored by its centre: shift it back by half its size toward
   // the corner, then rotate it along the diagonal like in the design.
@@ -116,7 +116,7 @@ export const CornerLink = ({
         };
   // The label glides between its corner pose and the title pose.
   labelStyle.transition =
-    'left 0.5s ease-in-out, top 0.5s ease-in-out, right 0.5s ease-in-out, bottom 0.5s ease-in-out, transform 0.5s ease-in-out, font-size 0.5s ease-in-out';
+    'left 0.3s ease-in-out, top 0.3s ease-in-out, right 0.3s ease-in-out, bottom 0.3s ease-in-out, transform 0.3s ease-in-out, font-size 0.3s ease-in-out';
 
   return (
     <Link

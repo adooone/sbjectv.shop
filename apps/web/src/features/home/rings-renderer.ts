@@ -320,10 +320,33 @@ const renormalize = (points: Point[]): void => {
   }
 };
 
-const MORPH_SECONDS = 0.4;
+/**
+ * The morph runs in two stages: the rectangle first slides and shrinks onto
+ * the shirt's footprint (fast), then that box reshapes into the shirt (slow).
+ * Going home plays the same stages backwards.
+ */
+const MORPH_SLIDE_SECONDS = 0.22;
+const MORPH_SHAPE_SECONDS = 0.7;
+const MORPH_SECONDS = MORPH_SLIDE_SECONDS + MORPH_SHAPE_SECONDS;
 const MORPH_POINTS = 720;
 const easeInOut = (p: number) =>
   p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
+const easeOut = (p: number) => 1 - (1 - p) ** 3;
+
+/** Axis-aligned bounds of a closed outline. */
+const bounds = (points: Point[]) => {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+};
 
 export type RingsRenderer = {
   resize: (width: number, height: number, dpr: number) => void;
@@ -359,7 +382,9 @@ export const createRingsRenderer = (
   /** The shirt outline and the two resampled outlines the morph tweens. */
   let shirt: { points: Point[]; length: number } = { points: [], length: 0 };
   let homeR: Point[] = [];
+  let boxR: Point[] = [];
   let shirtR: Point[] = [];
+  let boxLength = 0;
   let scene: SceneId = 'home';
   let pendingScene: SceneId = 'home';
   let morphStart = -1;
@@ -417,6 +442,15 @@ export const createRingsRenderer = (
       MORPH_POINTS,
     );
     shirtR = resampleOutline(shirt.points, shirt.length, MORPH_POINTS);
+    // The in-between: the window rectangle moved and sized to the shirt.
+    const b = bounds(shirt.points);
+    const box = { ...b, r: RINGS[windowRing].r * k };
+    boxLength = perimeter(box);
+    boxR = resampleOutline(
+      roundedRectOutline(box, Math.max(2, opts.segment * u)),
+      boxLength,
+      MORPH_POINTS,
+    );
   };
 
   /** 0 = home rectangle, 1 = shirt, in between while morphing. */
@@ -427,22 +461,55 @@ export const createRingsRenderer = (
     return morphTo === 'shirt' ? e : 1 - e;
   };
 
+  /**
+   * Which two keyframes the window is between and how far: keyframes are
+   * home rectangle → shirt-sized box → shirt, with their own timings; going
+   * home walks them backwards.
+   */
+  const morphStage = (
+    time: number,
+  ): { a: Point[]; b: Point[]; la: number; lb: number; t: number } | null => {
+    if (morphStart < 0) return null;
+    const elapsed = time - morphStart;
+    if (elapsed >= MORPH_SECONDS) return null;
+    const toShirt = morphTo === 'shirt';
+    const first = toShirt ? MORPH_SLIDE_SECONDS : MORPH_SHAPE_SECONDS;
+    if (elapsed < first) {
+      const p = elapsed / first;
+      return toShirt
+        ? { a: homeR, b: boxR, la: lengths[0], lb: boxLength, t: easeOut(p) }
+        : {
+            a: shirtR,
+            b: boxR,
+            la: shirt.length,
+            lb: boxLength,
+            t: easeInOut(p),
+          };
+    }
+    const p = (elapsed - first) / (MORPH_SECONDS - first);
+    return toShirt
+      ? { a: boxR, b: shirtR, la: boxLength, lb: shirt.length, t: easeInOut(p) }
+      : { a: boxR, b: homeR, la: boxLength, lb: lengths[0], t: easeOut(p) };
+  };
+
   /** The window outline for this frame: home, shirt, or a tween of both. */
   const windowPath = (
     time: number,
     windowRing: number,
   ): { points: Point[]; length: number } => {
-    const t = shirtness(time);
-    if (t <= 0)
-      return { points: outlines[windowRing], length: lengths[windowRing] };
-    if (t >= 1) return shirt;
-    const length =
-      lengths[windowRing] + (shirt.length - lengths[windowRing]) * t;
-    const points = homeR.map((a, j) => {
-      const b = shirtR[j];
+    const stage = morphStage(time);
+    if (!stage) {
+      return scene === 'shirt'
+        ? shirt
+        : { points: outlines[windowRing], length: lengths[windowRing] };
+    }
+    const { a, b, la, lb, t } = stage;
+    const length = la + (lb - la) * t;
+    const points = a.map((p, j) => {
+      const q = b[j];
       return {
-        x: a.x + (b.x - a.x) * t,
-        y: a.y + (b.y - a.y) * t,
+        x: p.x + (q.x - p.x) * t,
+        y: p.y + (q.y - p.y) * t,
         nx: 0,
         ny: 0,
         s: (j / MORPH_POINTS) * length,
