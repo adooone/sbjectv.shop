@@ -10,9 +10,9 @@ const page = <const TPath extends string>(path: TPath, title: string) =>
     component: () => <PlaceholderPage title={title} />,
   });
 
-export const odyahRoute = createRoute({
+export const tshirtsRoute = createRoute({
   getParentRoute: () => Root,
-  path: '/odyah',
+  path: '/tshirts',
   component: ShirtPage,
 });
 export const manifestRoute = page('/manifest', 'Маніфест');

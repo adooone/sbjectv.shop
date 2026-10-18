@@ -10,7 +10,7 @@ import type { SceneId } from './rings-renderer';
 /** Routes drawn on the shared canvas, and the shape the window takes there. */
 const SCENES: Record<string, SceneId> = {
   '/': 'home',
-  '/odyah': 'shirt',
+  '/tshirts': 'shirt',
 };
 
 export const isCanvasRoute = (pathname: string) => pathname in SCENES;
@@ -51,14 +51,19 @@ export const HomeShell = () => {
         draggable={false}
       />
       <Outlet />
-      {NAV_LINKS.map((link) => (
-        <CornerLink
-          key={link.to}
-          corner={link.corner}
-          to={link.to}
-          label={link.label}
-        />
-      ))}
+      {atHome ? (
+        NAV_LINKS.map((link) => (
+          <CornerLink
+            key={link.to}
+            corner={link.corner}
+            to={link.to}
+            label={link.label}
+          />
+        ))
+      ) : (
+        // Inside a section only the way home stays, in the top-left corner.
+        <CornerLink corner="tl" to="/" label="ДОДОМУ" />
+      )}
       {atHome && <HomeToggles value={settings} onChange={update} />}
       <MobileNav />
     </main>

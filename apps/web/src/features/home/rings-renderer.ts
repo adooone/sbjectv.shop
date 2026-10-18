@@ -320,7 +320,7 @@ const renormalize = (points: Point[]): void => {
   }
 };
 
-const MORPH_SECONDS = 0.6;
+const MORPH_SECONDS = 0.4;
 const MORPH_POINTS = 720;
 const easeInOut = (p: number) =>
   p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
