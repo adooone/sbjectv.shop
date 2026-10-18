@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { createNoise2D } from 'simplex-noise';
 import {
   cappedDpr,
+  createClock,
   observeVisible,
   prefersReducedMotion,
   subscribeTick,
@@ -75,10 +76,11 @@ export const InkTriangle = ({
     const direction = seed % 2 === 0 ? 1 : -1;
     const reduced = prefersReducedMotion();
     const start = performance.now();
+    const clock = createClock(reduced);
     // Fill level moves linearly toward its target over FILL_SECONDS and is
     // eased when drawn, so hovering reads as a soft pour, not a flash.
     let fillLevel = fillTarget.current;
-    let lastTime = start;
+    let lastClock = 0;
 
     // Same proportions as the Figma triangle (116 × 100.5), inset so the
     // stroke stays inside the canvas.
@@ -106,7 +108,7 @@ export const InkTriangle = ({
     const r3 = length / (size * 1.6 * TAU);
 
     const draw = (now: number) => {
-      const time = reduced ? 0 : (now - start) / 1000;
+      const time = clock.tick(now);
       const spin = (direction * time * 0.35) / r1;
       ctx.clearRect(0, 0, size, size);
       ctx.fillStyle = color === 'ink' ? '#000' : '#fff';
@@ -143,8 +145,8 @@ export const InkTriangle = ({
       ctx.closePath();
       ctx.fill();
 
-      const dt = Math.min(0.1, (now - lastTime) / 1000);
-      lastTime = now;
+      const dt = time - lastClock;
+      lastClock = time;
       const step = reduced ? 1 : dt / FILL_SECONDS;
       fillLevel =
         fillTarget.current > fillLevel

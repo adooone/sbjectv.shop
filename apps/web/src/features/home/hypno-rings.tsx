@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { cappedDpr, prefersReducedMotion, subscribeTick } from '@/lib/ticker';
+import {
+  cappedDpr,
+  createClock,
+  prefersReducedMotion,
+  subscribeTick,
+} from '@/lib/ticker';
 import {
   type RingsOptions,
   type RingsRenderer,
@@ -45,11 +50,11 @@ export const HypnoRings = ({
 
     const reduced = prefersReducedMotion();
     const start = performance.now();
-    const seconds = (now: number) => (reduced ? 0 : (now - start) / 1000);
+    const clock = createClock(reduced);
 
     const resize = () => {
       renderer.resize(canvas.clientWidth, canvas.clientHeight, cappedDpr());
-      renderer.draw(seconds(performance.now()));
+      renderer.draw(clock.now());
     };
 
     resize();
@@ -85,7 +90,7 @@ export const HypnoRings = ({
         fast = 0;
         renderer.setQuality(quality);
       }
-      renderer.draw(seconds(now));
+      renderer.draw(clock.tick(now));
     };
     const unsubscribe = reduced ? null : subscribeTick(tick);
 

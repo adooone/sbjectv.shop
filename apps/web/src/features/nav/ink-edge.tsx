@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { createNoise2D } from 'simplex-noise';
 import {
   cappedDpr,
+  createClock,
   observeVisible,
   prefersReducedMotion,
   subscribeTick,
@@ -33,7 +34,7 @@ export const InkEdge = ({ className }: InkEdgeProps) => {
 
     const noise = createNoise2D();
     const reduced = prefersReducedMotion();
-    const start = performance.now();
+    const clock = createClock(reduced);
     let width = 0;
     let height = 0;
 
@@ -46,7 +47,7 @@ export const InkEdge = ({ className }: InkEdgeProps) => {
     };
 
     const draw = (now: number) => {
-      const t = reduced ? 0 : (now - start) / 1000;
+      const t = clock.tick(now);
       ctx.clearRect(0, 0, width, height);
       const step = 3;
       // Paper below the edge.
