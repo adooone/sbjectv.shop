@@ -16,6 +16,18 @@ const SCENES: Record<string, SceneId> = {
   '/about': 'about',
 };
 
+/**
+ * Where the face flies when a section opens: away from that section's corner
+ * (ФУТБОЛКИ points top-left, so the face leaves bottom-right), in viewport
+ * units so it clears the screen.
+ */
+const EXIT: Record<Corner, { x: number; y: number }> = {
+  tl: { x: 1, y: 1 },
+  tr: { x: -1, y: 1 },
+  bl: { x: 1, y: -1 },
+  br: { x: -1, y: -1 },
+};
+
 /** Inside a section the way home sits on the same side, in the other corner. */
 const OPPOSITE: Record<Corner, Corner> = {
   tl: 'bl',
@@ -39,6 +51,7 @@ export const HomeShell = () => {
   const atHome = scene === 'home';
   const current = NAV_LINKS.find((link) => link.to === pathname);
   const homeCorner = OPPOSITE[current?.corner ?? 'tl'];
+  const exit = EXIT[current?.corner ?? 'tl'];
 
   return (
     <main className="home relative h-dvh w-full overflow-hidden bg-paper text-ink">
@@ -52,11 +65,19 @@ export const HomeShell = () => {
         alt="жека"
         width={3508}
         height={3190}
-        className="animate-face absolute top-1/2 left-1/2 h-auto -translate-x-1/2 -translate-y-1/2 select-none transition-opacity duration-500"
+        className="animate-face absolute top-1/2 left-1/2 h-auto select-none"
         style={{
           width: 'var(--face)',
           aspectRatio: '3508 / 3190',
+          // Centred at home; in a section it has flown off screen away from
+          // the section's corner, and it flies back the same way.
+          translate: atHome
+            ? '-50% -50%'
+            : `calc(-50% + ${exit.x * 70}vw) calc(-50% + ${exit.y * 70}vh)`,
           opacity: atHome ? 1 : 0,
+          transition: atHome
+            ? 'translate 0.6s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.3s ease-out'
+            : 'translate 0.55s cubic-bezier(0.6, 0, 0.9, 0.4), opacity 0.35s ease-in 0.2s',
           pointerEvents: atHome ? undefined : 'none',
         }}
         draggable={false}
