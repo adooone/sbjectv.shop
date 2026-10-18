@@ -32,11 +32,25 @@ export const MobileNav = () => {
             )}
             <Link
               to={pathname === link.to ? '/' : link.to}
-              className="block whitespace-nowrap py-3 underline-offset-4 hover:underline focus-visible:underline"
-              activeProps={{ className: 'underline' }}
+              className="relative block whitespace-nowrap py-3"
               style={{ transform: `rotate(${TILTS[i % TILTS.length]}deg)` }}
             >
               {link.label}
+              {/* "You are here": a filled ink triangle pointing up at the
+                  open section's word. Always mounted so it can pour in. */}
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0 left-1/2 block h-[12px] w-[12px] -translate-x-1/2 transition-opacity duration-300"
+                style={{ opacity: pathname === link.to ? 1 : 0 }}
+              >
+                <InkTriangle
+                  size={12}
+                  color="ink"
+                  seed={20 + i}
+                  filled={pathname === link.to}
+                  paused={pathname !== link.to}
+                />
+              </span>
             </Link>
           </Fragment>
         ))}

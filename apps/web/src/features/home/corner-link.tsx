@@ -68,6 +68,8 @@ type CornerLinkProps = {
   to: LinkProps['to'];
   mode?: CornerMode;
   layout?: CornerLayout;
+  /** paper: white on ink (default). ink: black, for corners on white paper. */
+  tone?: 'paper' | 'ink';
 };
 
 export const CornerLink = ({
@@ -76,6 +78,7 @@ export const CornerLink = ({
   to,
   mode = 'corner',
   layout = 'diagonal',
+  tone = 'paper',
 }: CornerLinkProps) => {
   const { triangle: tri, label: text } = PLACEMENTS[corner];
   const edge = EDGES[corner];
@@ -98,14 +101,15 @@ export const CornerLink = ({
   };
   const shift = (FIGMA_BOX - INK_BOX) / 2;
   const row = layout === 'row';
-  // Row: a smaller triangle, apex to the right, after the upright label.
+  // Row: a smaller triangle on the corner's side of the upright label, its
+  // apex pointing out toward that corner (left in a left corner).
   const triangleStyle: CSSProperties = row
     ? {
         [edge.x]: px(28),
         [edge.y]: px(40),
         width: px(52),
         height: px(52),
-        transform: 'rotate(90deg)',
+        transform: `rotate(${edge.x === 'left' ? -90 : 90}deg)`,
         opacity: mode === 'title' ? 0 : 1,
         transition: 'opacity 0.2s ease-in-out',
       }
@@ -161,7 +165,7 @@ export const CornerLink = ({
       <span className="absolute block" style={triangleStyle} aria-hidden="true">
         <InkTriangle
           size={INK_BOX}
-          color="paper"
+          color={tone}
           seed={CORNER_SEEDS[corner]}
           filled={hot && mode === 'corner'}
           paused={mode === 'hidden'}
@@ -169,7 +173,7 @@ export const CornerLink = ({
         />
       </span>
       <span
-        className="absolute block whitespace-nowrap font-display font-semibold text-paper leading-none"
+        className={`absolute block whitespace-nowrap font-display font-semibold leading-none ${tone === 'ink' ? 'text-ink' : 'text-paper'}`}
         style={labelStyle}
       >
         {label}

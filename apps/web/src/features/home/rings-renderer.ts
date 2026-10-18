@@ -215,6 +215,30 @@ const MORPH_SHAPE = { start: 0.32, end: 1, stagger: 0.45 };
 const MORPH_DIRECT_SECONDS = 0.75;
 const MORPH_DIRECT = { start: 0, end: 1, stagger: 0.45 };
 const MORPH_POINTS = 720;
+/**
+ * The inside (inner rings, stripe, face) has its own choreography, in
+ * seconds from the moment the scene changes.
+ *
+ * Leaving home: each inner ring draws back a touch, then falls evenly onto
+ * the innermost ring (rings in turn), and when all have landed the bundle
+ * flies off; only then does the window start reshaping.
+ *
+ * Coming home: the window turns back into the rectangle first, then the
+ * bundle flies in, and the rings spring out past their places and settle.
+ */
+const COLLAPSE_SECONDS = 0.55;
+const COLLAPSE_DELAY_SECONDS = 0.14;
+const FLIGHT_OUT_START = 0.72;
+const FLIGHT_OUT_SECONDS = 0.5;
+/** The window waits for the bundle to be well on its way. */
+const WINDOW_DELAY_SECONDS = 0.9;
+/** Going home the inside waits for the window to be a rectangle again. */
+const INTERIOR_HOME_DELAY_SECONDS = 0.55;
+const FLIGHT_IN_SECONDS = 0.55;
+const EXPAND_START = 0.45;
+const EXPAND_SECONDS = 0.65;
+const EXPAND_DELAY_SECONDS = 0.14;
+const INTERIOR_POINTS = 480;
 /** Smootherstep: zero velocity and acceleration at both ends, no kinks. */
 const easeInOut = (p: number) => p * p * p * (p * (p * 6 - 15) + 10);
 /** Eases out with a gentle overshoot, like something settling into place. */
@@ -223,9 +247,24 @@ const easeOutBack = (p: number, c1 = 1.1) => {
   return 1 + c3 * (p - 1) ** 3 + c1 * (p - 1) ** 2;
 };
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+/** Draws back below 0 first, then eases in; lands at 1 without overshoot. */
+const anticipateIn = (p: number, c1 = 1.7) => {
+  if (p < 0.5) {
+    const c2 = c1 * 1.525;
+    return ((2 * p) ** 2 * ((c2 + 1) * 2 * p - c2)) / 2;
+  }
+  const q = (p - 0.5) * 2;
+  return 0.5 + 0.5 * (1 - (1 - q) ** 3);
+};
+/** Eases out past 1 and settles back, like a spring let go. */
+const overshootOut = (p: number, c1 = 1.7) => {
+  const c3 = c1 + 1;
+  return 1 + c3 * (p - 1) ** 3 + c1 * (p - 1) ** 2;
+};
 
 /** Axis-aligned bounds of a closed outline. */
-const bounds = (points: Point[]) => {
+type Box = { x: number; y: number; w: number; h: number };
+const bounds = (points: Point[]): Box => {
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
@@ -259,7 +298,9 @@ export type RingsRenderer = {
   resize: (width: number, height: number, dpr: number) => void;
   draw: (time: number) => void;
   /** Switches the scene; the window edge morphs and the inside fades. */
-  setScene: (scene: SceneId) => void;
+  setScene: (scene: SceneId, exit?: { x: number; y: number }) => void;
+  /** Screen-space offset of the inside after the last draw, in CSS px. */
+  interiorShift: () => { x: number; y: number };
   /** Updates options in place, keeping the running animation. */
   setOptions: (options: Partial<RingsOptions>) => void;
   /** 0 = full detail, 1 and 2 trade points and pixels for frame rate. */
@@ -289,6 +330,9 @@ export const createRingsRenderer = (
   let u = 1;
   let half = DESIGN.stroke / 2;
   let outlines: Point[][] = [];
+  /** Inner rings and the innermost ring resampled to a shared count. */
+  let collapseR: Point[][] = [];
+  let innermostR: Point[] = [];
   let lengths: number[] = [];
   let geometry: Partial<Record<SceneId, SceneGeometry>> = {};
   /** Last known size, so options and quality changes can rebuild geometry. */
@@ -322,6 +366,9 @@ export const createRingsRenderer = (
   let slideKey: number[] = [];
   let scene: SceneId = 'home';
   let pendingScene: SceneId = 'home';
+  /** Screen direction the inside flies off in when a section opens (unit-ish). */
+  let exitDir = { x: 1, y: 1 };
+  let lastShift = { x: 0, y: 0 };
   let morphStart = -1;
   let morphFrom: SceneId = 'home';
   let morphTo: SceneId = 'home';
@@ -373,11 +420,27 @@ export const createRingsRenderer = (
     }));
     outlines = scaled.map((ring) => roundedRectOutline(ring, segment));
     lengths = scaled.map(perimeter);
+    const last = outlines.length - 1;
+    innermostR = resampleOutline(
+      outlines[last],
+      lengths[last],
+      INTERIOR_POINTS,
+    );
+    collapseR = outlines.map((o, i) =>
+      resampleOutline(o, lengths[i], INTERIOR_POINTS),
+    );
 
     const map = (v: { x: number; y: number }) => ({
       x: v.x * sx,
       y: v.y * sy + offsetY,
     });
+    // Stagger keys follow the screen, not the logical frame: on a phone the
+    // top of the screen is the landscape left and its left the landscape
+    // bottom, so "down the screen" and "across the screen" swap axes.
+    const down = (p: Point, b: Box) =>
+      portrait ? (p.x - b.x) / (b.w || 1) : (p.y - b.y) / (b.h || 1);
+    const across = (p: Point, b: Box) =>
+      portrait ? 1 - (p.y - b.y) / (b.h || 1) : (p.x - b.x) / (b.w || 1);
     const geometryOf = (outline: Outline, ink: Ring[]): SceneGeometry => {
       const R = resampleOutline(outline.points, outline.length, MORPH_POINTS);
       const b = bounds(outline.points);
@@ -392,11 +455,9 @@ export const createRingsRenderer = (
           length: boxLength,
           R: resampleOutline(boxOutline, boxLength, MORPH_POINTS),
         },
-        growKey: R.map((p) => (p.y - b.y) / (b.h || 1)),
+        growKey: R.map((p) => down(p, b)),
         releaseKey: R.map(
-          (p) =>
-            0.6 * (1 - (p.y - b.y) / (b.h || 1)) +
-            0.4 * (1 - (p.x - b.x) / (b.w || 1)),
+          (p) => 0.6 * (1 - down(p, b)) + 0.4 * (1 - across(p, b)),
         ),
         ink,
       };
@@ -425,7 +486,7 @@ export const createRingsRenderer = (
     }
     const home = geometry.home as SceneGeometry;
     const hb = bounds(home.R);
-    slideKey = home.R.map((p) => (p.x - hb.x) / (hb.w || 1));
+    slideKey = home.R.map((p) => across(p, hb));
   };
 
   /** How long the current morph takes: two stages from home, one otherwise. */
@@ -434,11 +495,17 @@ export const createRingsRenderer = (
       ? MORPH_SECONDS
       : MORPH_DIRECT_SECONDS;
 
+  /** Time since the window's own morph began (it waits when leaving home). */
+  const windowElapsed = (time: number) =>
+    time -
+    morphStart -
+    (morphFrom === 'home' && morphTo !== 'home' ? WINDOW_DELAY_SECONDS : 0);
+
   /** Overall progress of the current morph, eased, 1 when idle. */
   const morphProgress = (time: number) =>
     morphStart < 0
       ? 1
-      : easeInOut(clamp01((time - morphStart) / morphSeconds()));
+      : easeInOut(clamp01(windowElapsed(time) / morphSeconds()));
 
   /** 0 at home, 1 in a section, in between while morphing. */
   const sectionness = (time: number): number => {
@@ -463,7 +530,7 @@ export const createRingsRenderer = (
   const windowPath = (time: number): Outline => {
     const current = geometry[scene] as SceneGeometry;
     const elapsed =
-      morphStart < 0 ? Number.POSITIVE_INFINITY : time - morphStart;
+      morphStart < 0 ? Number.POSITIVE_INFINITY : windowElapsed(time);
     if (elapsed >= morphSeconds()) return current.outline;
 
     const a = geometry[morphFrom] as SceneGeometry;
@@ -549,8 +616,10 @@ export const createRingsRenderer = (
     // The window edge wobbles less in a section; while it reshapes the ink
     // gets excited, then calms down.
     const morphing =
-      morphStart >= 0 && time - morphStart < morphSeconds()
-        ? (time - morphStart) / morphSeconds()
+      morphStart >= 0 &&
+      windowElapsed(time) >= 0 &&
+      windowElapsed(time) < morphSeconds()
+        ? windowElapsed(time) / morphSeconds()
         : 0;
     const section = sectionness(time);
     const windowAmp =
@@ -562,18 +631,95 @@ export const createRingsRenderer = (
     // Outer and inner edges per ring, kept for the stripe fill below.
     const edges: { outer: Float64Array; inner: Float64Array; count: number }[] =
       [];
-    // Everything inside the window fades out as a section takes over.
-    const fade = 1 - section;
+    // The inside leaves in two stages as a section takes over: the inner
+    // rings collapse one after another onto the innermost ring around the
+    // face, then that ring and the face fly off screen away from the
+    // section's corner, accelerating. Going home plays it backwards: fly in,
+    // then spread out. `leaving` is 0 at home and 1 in a section.
+    const since = morphStart < 0 ? Number.POSITIVE_INFINITY : time - morphStart;
+    const toHome = morphStart >= 0 ? morphTo === 'home' : scene === 'home';
+    const fromHome = morphStart >= 0 && morphFrom === 'home';
+    /** Collapse of ring i: 0 in place, 1 on the innermost ring. */
+    let collapseOf: (i: number) => number;
+    let flight: number;
+    if (morphStart >= 0 && fromHome && !toHome) {
+      // Leaving home: draw back, fall in, then fly.
+      collapseOf = (i) =>
+        anticipateIn(
+          clamp01(
+            (since - (i - windowRing - 1) * COLLAPSE_DELAY_SECONDS) /
+              COLLAPSE_SECONDS,
+          ),
+        );
+      const f = clamp01((since - FLIGHT_OUT_START) / FLIGHT_OUT_SECONDS);
+      flight = f * f * f;
+    } else if (morphStart >= 0 && toHome) {
+      // Coming home: wait for the window, fly in, spring out past the mark.
+      const t = since - INTERIOR_HOME_DELAY_SECONDS;
+      const fin = clamp01(t / FLIGHT_IN_SECONDS);
+      flight = 1 - (1 - (1 - fin) ** 3);
+      collapseOf = (i) =>
+        1 -
+        overshootOut(
+          clamp01(
+            (t - EXPAND_START - (i - windowRing - 1) * EXPAND_DELAY_SECONDS) /
+              EXPAND_SECONDS,
+          ),
+        );
+    } else {
+      // Idle, or between two sections: the inside is home or away.
+      const away = toHome ? 0 : 1;
+      collapseOf = () => away;
+      flight = away;
+    }
+    const fade = flight >= 1 ? 0 : 1;
+    // In portrait the screen direction is turned into the logical frame.
+    const dir = portrait ? { x: exitDir.y, y: -exitDir.x } : exitDir;
+    const shiftX = dir.x * width * 1.2 * flight;
+    const shiftY = dir.y * height * 1.2 * flight;
+    lastShift = {
+      x: exitDir.x * viewW * 1.2 * flight,
+      y: exitDir.y * viewH * 1.2 * flight,
+    };
     const win = windowPath(time);
-    const rings = outlines.map((points, i) =>
-      i === windowRing ? win : { points, length: lengths[i] },
-    );
+    const lastIndex = outlines.length - 1;
+    const rings = outlines.map((points, i) => {
+      if (i === windowRing) return win;
+      const t = i > windowRing && i < lastIndex ? collapseOf(i) : 0;
+      if (t === 0) return { points, length: lengths[i] };
+      // Tween this ring onto the innermost one, point by point.
+      const R = collapseR[i];
+      const target = innermostR;
+      let sum = 0;
+      const tweened = R.map((p, j) => {
+        sum += Math.abs(t);
+        const q = target[j];
+        return {
+          x: p.x + (q.x - p.x) * t,
+          y: p.y + (q.y - p.y) * t,
+          nx: 0,
+          ny: 0,
+          s: 0,
+        };
+      });
+      if (sum <= 0) return { points, length: lengths[i] };
+      // Arc length from the tweened polygon itself.
+      let s = 0;
+      for (let j = 0; j < tweened.length; j++) {
+        tweened[j].s = s;
+        const q = tweened[(j + 1) % tweened.length];
+        s += Math.hypot(q.x - tweened[j].x, q.y - tweened[j].y);
+      }
+      renormalize(tweened);
+      return { points: tweened, length: s };
+    });
 
     rings.forEach(({ points, length }, i) => {
       // Rings outside the window edge would be ink on ink.
       if (i < windowRing) return;
       if (i > windowRing && fade <= 0) return;
-      target.globalAlpha = i === windowRing ? 1 : fade;
+      const sx = i === windowRing ? 0 : shiftX;
+      const sy = i === windowRing ? 0 : shiftY;
       // Neighbouring rings flow in opposite directions: even ones clockwise,
       // odd ones counter-clockwise.
       const direction = i % 2 === 0 ? 1 : -1;
@@ -631,10 +777,10 @@ export const createRingsRenderer = (
         const w = ws[j];
         const px = p.x + p.nx * d - meanX;
         const py = p.y + p.ny * d - meanY;
-        outer[2 * j] = cx + (px + p.nx * w - cx) * breath;
-        outer[2 * j + 1] = cy + (py + p.ny * w - cy) * breath;
-        inner[2 * j] = cx + (px - p.nx * w - cx) * breath;
-        inner[2 * j + 1] = cy + (py - p.ny * w - cy) * breath;
+        outer[2 * j] = cx + (px + p.nx * w - cx) * breath + sx;
+        outer[2 * j + 1] = cy + (py + p.ny * w - cy) * breath + sy;
+        inner[2 * j] = cx + (px - p.nx * w - cx) * breath + sx;
+        inner[2 * j + 1] = cy + (py - p.ny * w - cy) * breath + sy;
       }
       // Repeat the first point so the band also covers the closing segment.
       outer[2 * n] = outer[0];
@@ -673,7 +819,6 @@ export const createRingsRenderer = (
     const a = edges[windowRing + 1];
     const b = edges[windowRing + 2];
     if (opts.inkStripe && a && b && fade > 0) {
-      target.globalAlpha = fade;
       target.beginPath();
       target.moveTo(a.outer[0], a.outer[1]);
       for (let j = 2; j < a.count; j += 2) {
@@ -686,7 +831,6 @@ export const createRingsRenderer = (
       }
       target.closePath();
       target.fill('evenodd');
-      target.globalAlpha = 1;
     }
 
     // Scene extras (sprocket holes) cross-fade with the morph.
@@ -721,7 +865,8 @@ export const createRingsRenderer = (
     return x - Math.floor(x);
   };
 
-  const setScene = (next: SceneId) => {
+  const setScene = (next: SceneId, exit?: { x: number; y: number }) => {
+    if (exit) exitDir = exit;
     pendingScene = next;
   };
 
@@ -824,5 +969,12 @@ export const createRingsRenderer = (
     ctx.setTransform(dprScale, 0, 0, dprScale, 0, 0);
   };
 
-  return { resize, draw, setScene, setOptions, setQuality };
+  return {
+    resize,
+    draw,
+    setScene,
+    setOptions,
+    setQuality,
+    interiorShift: () => lastShift,
+  };
 };

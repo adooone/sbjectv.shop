@@ -17,6 +17,10 @@ type HypnoRingsProps = {
   options?: Partial<RingsOptions>;
   /** Which shape the window takes; changes animate. */
   scene?: SceneId;
+  /** Screen direction the inside flies off in when a section opens. */
+  exit?: { x: number; y: number };
+  /** Called after every draw with the inside's offset, for DOM that flies with it. */
+  onShift?: (x: number, y: number) => void;
 };
 
 /**
@@ -32,11 +36,17 @@ export const HypnoRings = ({
   className,
   options,
   scene = 'home',
+  exit,
+  onShift,
 }: HypnoRingsProps) => {
   const ref = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<RingsRenderer | null>(null);
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
+  const exitRef = useRef(exit);
+  exitRef.current = exit;
+  const onShiftRef = useRef(onShift);
+  onShiftRef.current = onShift;
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -46,7 +56,7 @@ export const HypnoRings = ({
     const renderer = createRingsRenderer(canvas, optionsRef.current);
     if (!renderer) return;
     rendererRef.current = renderer;
-    renderer.setScene(sceneRef.current);
+    renderer.setScene(sceneRef.current, exitRef.current);
 
     const reduced = prefersReducedMotion();
     const start = performance.now();
@@ -55,6 +65,8 @@ export const HypnoRings = ({
     const resize = () => {
       renderer.resize(canvas.clientWidth, canvas.clientHeight, cappedDpr());
       renderer.draw(clock.now());
+      const s = renderer.interiorShift();
+      onShiftRef.current?.(s.x, s.y);
     };
 
     resize();
@@ -91,6 +103,8 @@ export const HypnoRings = ({
         renderer.setQuality(quality);
       }
       renderer.draw(clock.tick(now));
+      const s = renderer.interiorShift();
+      onShiftRef.current?.(s.x, s.y);
     };
     const unsubscribe = reduced ? null : subscribeTick(tick);
 
@@ -103,7 +117,7 @@ export const HypnoRings = ({
   }, []);
 
   useEffect(() => {
-    rendererRef.current?.setScene(scene);
+    rendererRef.current?.setScene(scene, exitRef.current);
   }, [scene]);
 
   // Option changes (the stripe switch) update the live renderer in place, so

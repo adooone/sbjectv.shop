@@ -121,8 +121,13 @@
 }
 
 @layer base {
+  /* Everything outside the canvas (rubber-band overscroll, the area under
+     the phone's status bar) is ink, like the canvas edges. */
+  html {
+    @apply bg-ink;
+  }
   body {
-    @apply bg-paper text-ink font-sans antialiased;
+    @apply bg-ink text-ink font-sans antialiased;
   }
 
   /* One design pixel of the 1440 × 1024 Figma frame, as a length. */
