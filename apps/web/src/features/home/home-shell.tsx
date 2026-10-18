@@ -2,18 +2,27 @@ import { Outlet, useRouterState } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import zheka from '@/assets/zheka.png';
 import { MobileNav, NAV_LINKS } from '@/features/nav';
-import { CornerLink } from './corner-link';
+import { type Corner, CornerLink } from './corner-link';
 import { HomeToggles, useHomeSettings } from './home-toggles';
 import { HypnoRings } from './hypno-rings';
 import type { SceneId } from './rings-renderer';
 
-/** Routes drawn on the shared canvas, and the shape the window takes there. */
+/** The shape the window takes on each route. */
 const SCENES: Record<string, SceneId> = {
   '/': 'home',
   '/tshirts': 'shirt',
+  '/manifest': 'manifest',
+  '/photojournal': 'film',
+  '/about': 'about',
 };
 
-export const isCanvasRoute = (pathname: string) => pathname in SCENES;
+/** Inside a section the way home sits on the same side, in the other corner. */
+const OPPOSITE: Record<Corner, Corner> = {
+  tl: 'bl',
+  bl: 'tl',
+  tr: 'br',
+  br: 'tr',
+};
 
 /**
  * The living frame: one canvas under every canvas route, the face, the corner
@@ -28,6 +37,8 @@ export const HomeShell = () => {
     [settings.stripe],
   );
   const atHome = scene === 'home';
+  const current = NAV_LINKS.find((link) => link.to === pathname);
+  const homeCorner = OPPOSITE[current?.corner ?? 'tl'];
 
   return (
     <main className="home relative h-dvh w-full overflow-hidden bg-paper text-ink">
@@ -61,9 +72,11 @@ export const HomeShell = () => {
         />
       ))}
       {!atHome && (
-        // Inside a section the way home sits in the bottom-left corner.
-        <div style={{ animation: 'fade-in 0.4s ease-out 0.3s both' }}>
-          <CornerLink corner="bl" to="/" label="ДОДОМУ" />
+        <div
+          key={homeCorner}
+          style={{ animation: 'fade-in 0.4s ease-out 0.3s both' }}
+        >
+          <CornerLink corner={homeCorner} to="/" label="ДОДОМУ" />
         </div>
       )}
       {atHome && <HomeToggles value={settings} onChange={update} />}
