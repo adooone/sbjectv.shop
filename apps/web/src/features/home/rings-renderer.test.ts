@@ -13,7 +13,7 @@ describe('roundedRectOutline', () => {
     }
   });
 
-  it('keeps the five Figma rings nested around the frame centre', () => {
+  it('keeps the Figma rings nested around the frame centre', () => {
     for (const ring of RINGS) {
       expect(ring.x + ring.w / 2).toBeCloseTo(720, -1);
       expect(ring.y + ring.h / 2).toBeCloseTo(512, -1);

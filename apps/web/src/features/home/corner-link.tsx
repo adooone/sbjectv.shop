@@ -59,7 +59,7 @@ export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
   const { triangle: tri, label: text } = PLACEMENTS[corner];
   const edge = EDGES[corner];
 
-  // --corner-inset pushes the whole corner group inward (set per window edge).
+  // --corner-inset (index.css) pushes the whole corner group inward.
   const box: CSSProperties = {
     [edge.x]: 'var(--corner-inset, 0px)',
     [edge.y]: 'var(--corner-inset, 0px)',
