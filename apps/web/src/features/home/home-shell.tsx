@@ -1,7 +1,7 @@
 import { Outlet, useRouterState } from '@tanstack/react-router';
 import { useCallback, useMemo, useRef } from 'react';
 import zheka from '@/assets/zheka.png';
-import { MobileNav, NAV_LINKS } from '@/features/nav';
+import { MobileHome, MobileNav, NAV_LINKS } from '@/features/nav';
 import { type Corner, CornerLink } from './corner-link';
 import { HomeToggles, useHomeSettings } from './home-toggles';
 import { HypnoRings } from './hypno-rings';
@@ -106,6 +106,7 @@ export const HomeShell = () => {
         tone={scene === 'manifest' ? 'ink' : 'paper'}
       />
       {atHome && <HomeToggles value={settings} onChange={update} />}
+      <MobileHome visible={!atHome} />
       <MobileNav />
     </main>
   );
