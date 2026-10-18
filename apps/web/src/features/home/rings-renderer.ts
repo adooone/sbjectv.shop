@@ -216,18 +216,29 @@ const MORPH_DIRECT_SECONDS = 0.75;
 const MORPH_DIRECT = { start: 0, end: 1, stagger: 0.45 };
 const MORPH_POINTS = 720;
 /**
- * The inside (inner rings, stripe, face) has its own, slower timeline. Each
- * inner ring collapses onto the innermost one point by point (its left side
- * first), rings start one after another, then everything flies off.
+ * The inside (inner rings, stripe, face) has its own choreography, in
+ * seconds from the moment the scene changes.
+ *
+ * Leaving home: each inner ring draws back a touch, then falls evenly onto
+ * the innermost ring (rings in turn), and when all have landed the bundle
+ * flies off; only then does the window start reshaping.
+ *
+ * Coming home: the window turns back into the rectangle first, then the
+ * bundle flies in, and the rings spring out past their places and settle.
  */
-const INTERIOR_OUT_SECONDS = 1.6;
-const INTERIOR_HOME_SECONDS = 1.3;
+const COLLAPSE_SECONDS = 0.55;
+const COLLAPSE_DELAY_SECONDS = 0.14;
+const FLIGHT_OUT_START = 0.72;
+const FLIGHT_OUT_SECONDS = 0.5;
+/** The window waits for the bundle to be well on its way. */
+const WINDOW_DELAY_SECONDS = 0.9;
+/** Going home the inside waits for the window to be a rectangle again. */
+const INTERIOR_HOME_DELAY_SECONDS = 0.55;
+const FLIGHT_IN_SECONDS = 0.55;
+const EXPAND_START = 0.45;
+const EXPAND_SECONDS = 0.65;
+const EXPAND_DELAY_SECONDS = 0.14;
 const INTERIOR_POINTS = 480;
-/** Fractions of the interior timeline. */
-const COLLAPSE_LENGTH = 0.42;
-const COLLAPSE_DELAY = 0.24;
-const COLLAPSE_SPREAD = 0.3;
-const FLIGHT_START = 0.68;
 /** Smootherstep: zero velocity and acceleration at both ends, no kinks. */
 const easeInOut = (p: number) => p * p * p * (p * (p * 6 - 15) + 10);
 /** Eases out with a gentle overshoot, like something settling into place. */
@@ -236,15 +247,19 @@ const easeOutBack = (p: number, c1 = 1.1) => {
   return 1 + c3 * (p - 1) ** 3 + c1 * (p - 1) ** 2;
 };
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-/**
- * Ease in and out with anticipation and overshoot: dips below 0 before
- * moving and passes 1 before settling, like a drawn-back spring.
- */
-const easeInOutBack = (p: number, c1 = 1.3) => {
-  const c2 = c1 * 1.525;
-  return p < 0.5
-    ? ((2 * p) ** 2 * ((c2 + 1) * 2 * p - c2)) / 2
-    : ((2 * p - 2) ** 2 * ((c2 + 1) * (p * 2 - 2) + c2) + 2) / 2;
+/** Draws back below 0 first, then eases in; lands at 1 without overshoot. */
+const anticipateIn = (p: number, c1 = 1.7) => {
+  if (p < 0.5) {
+    const c2 = c1 * 1.525;
+    return ((2 * p) ** 2 * ((c2 + 1) * 2 * p - c2)) / 2;
+  }
+  const q = (p - 0.5) * 2;
+  return 0.5 + 0.5 * (1 - (1 - q) ** 3);
+};
+/** Eases out past 1 and settles back, like a spring let go. */
+const overshootOut = (p: number, c1 = 1.7) => {
+  const c3 = c1 + 1;
+  return 1 + c3 * (p - 1) ** 3 + c1 * (p - 1) ** 2;
 };
 
 /** Axis-aligned bounds of a closed outline. */
@@ -314,10 +329,8 @@ export const createRingsRenderer = (
   let u = 1;
   let half = DESIGN.stroke / 2;
   let outlines: Point[][] = [];
-  /** Inner rings and the innermost ring resampled to a shared count, plus
-   * per-point start delays (left side first) for the collapse. */
+  /** Inner rings and the innermost ring resampled to a shared count. */
   let collapseR: Point[][] = [];
-  let collapseKey: number[][] = [];
   let innermostR: Point[] = [];
   let lengths: number[] = [];
   let geometry: Partial<Record<SceneId, SceneGeometry>> = {};
@@ -415,10 +428,6 @@ export const createRingsRenderer = (
     collapseR = outlines.map((o, i) =>
       resampleOutline(o, lengths[i], INTERIOR_POINTS),
     );
-    collapseKey = collapseR.map((R) => {
-      const b = bounds(R);
-      return R.map((p) => (p.x - b.x) / (b.w || 1));
-    });
 
     const map = (v: { x: number; y: number }) => ({
       x: v.x * sx,
@@ -480,11 +489,17 @@ export const createRingsRenderer = (
       ? MORPH_SECONDS
       : MORPH_DIRECT_SECONDS;
 
+  /** Time since the window's own morph began (it waits when leaving home). */
+  const windowElapsed = (time: number) =>
+    time -
+    morphStart -
+    (morphFrom === 'home' && morphTo !== 'home' ? WINDOW_DELAY_SECONDS : 0);
+
   /** Overall progress of the current morph, eased, 1 when idle. */
   const morphProgress = (time: number) =>
     morphStart < 0
       ? 1
-      : easeInOut(clamp01((time - morphStart) / morphSeconds()));
+      : easeInOut(clamp01(windowElapsed(time) / morphSeconds()));
 
   /** 0 at home, 1 in a section, in between while morphing. */
   const sectionness = (time: number): number => {
@@ -509,7 +524,7 @@ export const createRingsRenderer = (
   const windowPath = (time: number): Outline => {
     const current = geometry[scene] as SceneGeometry;
     const elapsed =
-      morphStart < 0 ? Number.POSITIVE_INFINITY : time - morphStart;
+      morphStart < 0 ? Number.POSITIVE_INFINITY : windowElapsed(time);
     if (elapsed >= morphSeconds()) return current.outline;
 
     const a = geometry[morphFrom] as SceneGeometry;
@@ -595,8 +610,10 @@ export const createRingsRenderer = (
     // The window edge wobbles less in a section; while it reshapes the ink
     // gets excited, then calms down.
     const morphing =
-      morphStart >= 0 && time - morphStart < morphSeconds()
-        ? (time - morphStart) / morphSeconds()
+      morphStart >= 0 &&
+      windowElapsed(time) >= 0 &&
+      windowElapsed(time) < morphSeconds()
+        ? windowElapsed(time) / morphSeconds()
         : 0;
     const section = sectionness(time);
     const windowAmp =
@@ -613,29 +630,42 @@ export const createRingsRenderer = (
     // face, then that ring and the face fly off screen away from the
     // section's corner, accelerating. Going home plays it backwards: fly in,
     // then spread out. `leaving` is 0 at home and 1 in a section.
-    const interiorSeconds =
-      morphTo === 'home' ? INTERIOR_HOME_SECONDS : INTERIOR_OUT_SECONDS;
-    const raw =
-      morphStart < 0 ? 1 : clamp01((time - morphStart) / interiorSeconds);
-    const leaving =
-      morphStart < 0
-        ? scene === 'home'
-          ? 0
-          : 1
-        : morphTo === 'home'
-          ? 1 - raw
-          : morphFrom === 'home'
-            ? raw
-            : 1;
-    /** Collapse progress of ring i at point j: rings start in turn, and
-     * within a ring the left side goes first; drawn back, then overshoot. */
-    const collapseAt = (i: number, key: number) => {
-      const start =
-        (i - windowRing - 1) * COLLAPSE_DELAY + key * COLLAPSE_SPREAD;
-      return easeInOutBack(clamp01((leaving - start) / COLLAPSE_LENGTH), 1.9);
-    };
-    const flightRaw = clamp01((leaving - FLIGHT_START) / (1 - FLIGHT_START));
-    const flight = flightRaw * flightRaw * flightRaw;
+    const since = morphStart < 0 ? Number.POSITIVE_INFINITY : time - morphStart;
+    const toHome = morphStart >= 0 ? morphTo === 'home' : scene === 'home';
+    const fromHome = morphStart >= 0 && morphFrom === 'home';
+    /** Collapse of ring i: 0 in place, 1 on the innermost ring. */
+    let collapseOf: (i: number) => number;
+    let flight: number;
+    if (morphStart >= 0 && fromHome && !toHome) {
+      // Leaving home: draw back, fall in, then fly.
+      collapseOf = (i) =>
+        anticipateIn(
+          clamp01(
+            (since - (i - windowRing - 1) * COLLAPSE_DELAY_SECONDS) /
+              COLLAPSE_SECONDS,
+          ),
+        );
+      const f = clamp01((since - FLIGHT_OUT_START) / FLIGHT_OUT_SECONDS);
+      flight = f * f * f;
+    } else if (morphStart >= 0 && toHome) {
+      // Coming home: wait for the window, fly in, spring out past the mark.
+      const t = since - INTERIOR_HOME_DELAY_SECONDS;
+      const fin = clamp01(t / FLIGHT_IN_SECONDS);
+      flight = 1 - (1 - (1 - fin) ** 3);
+      collapseOf = (i) =>
+        1 -
+        overshootOut(
+          clamp01(
+            (t - EXPAND_START - (i - windowRing - 1) * EXPAND_DELAY_SECONDS) /
+              EXPAND_SECONDS,
+          ),
+        );
+    } else {
+      // Idle, or between two sections: the inside is home or away.
+      const away = toHome ? 0 : 1;
+      collapseOf = () => away;
+      flight = away;
+    }
     const fade = flight >= 1 ? 0 : 1;
     // In portrait the screen direction is turned into the logical frame.
     const dir = portrait ? { x: exitDir.y, y: -exitDir.x } : exitDir;
@@ -649,16 +679,14 @@ export const createRingsRenderer = (
     const lastIndex = outlines.length - 1;
     const rings = outlines.map((points, i) => {
       if (i === windowRing) return win;
-      const collapsing = i > windowRing && i < lastIndex && leaving > 0;
-      if (!collapsing) return { points, length: lengths[i] };
+      const t = i > windowRing && i < lastIndex ? collapseOf(i) : 0;
+      if (t === 0) return { points, length: lengths[i] };
       // Tween this ring onto the innermost one, point by point.
       const R = collapseR[i];
-      const keys = collapseKey[i];
       const target = innermostR;
       let sum = 0;
       const tweened = R.map((p, j) => {
-        const t = collapseAt(i, keys[j]);
-        sum += t;
+        sum += Math.abs(t);
         const q = target[j];
         return {
           x: p.x + (q.x - p.x) * t,
