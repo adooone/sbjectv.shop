@@ -1,20 +1,15 @@
 import { createRoute } from '@tanstack/react-router';
-import { PlaceholderPage } from '@/features/placeholder';
-import { ShirtPage } from '@/features/shirt';
+import { SectionPage } from '@/features/sections/section-page';
 import { Root } from './root';
 
-const page = <const TPath extends string>(path: TPath, title: string) =>
+const section = <const TPath extends string>(path: TPath, title: string) =>
   createRoute({
     getParentRoute: () => Root,
     path,
-    component: () => <PlaceholderPage title={title} />,
+    component: () => <SectionPage title={title} />,
   });
 
-export const tshirtsRoute = createRoute({
-  getParentRoute: () => Root,
-  path: '/tshirts',
-  component: ShirtPage,
-});
-export const manifestRoute = page('/manifest', 'Маніфест');
-export const aboutRoute = page('/about', 'Ебаут');
-export const photojournalRoute = page('/photojournal', 'Фото');
+export const tshirtsRoute = section('/tshirts', 'Футболки');
+export const manifestRoute = section('/manifest', 'Маніфест');
+export const aboutRoute = section('/about', 'Ебаут');
+export const photojournalRoute = section('/photojournal', 'Фото');

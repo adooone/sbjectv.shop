@@ -55,6 +55,9 @@ const CORNER_SEEDS: Record<Corner, number> = { tl: 1, tr: 2, bl: 3, br: 4 };
  * hidden: fades out but stays mounted so it can come back.
  */
 export type CornerMode = 'corner' | 'title' | 'hidden';
+/** diagonal: tilted along the corner, as in Figma. row: upright text with the
+ * triangle pointing right after it, for corners that sit on a thin black band. */
+export type CornerLayout = 'diagonal' | 'row';
 
 // Where the section title sits, relative to the corner box (design px).
 const TITLE = { x: 72, y: 48, size: 46 };
@@ -64,6 +67,7 @@ type CornerLinkProps = {
   label: string;
   to: LinkProps['to'];
   mode?: CornerMode;
+  layout?: CornerLayout;
 };
 
 export const CornerLink = ({
@@ -71,6 +75,7 @@ export const CornerLink = ({
   label,
   to,
   mode = 'corner',
+  layout = 'diagonal',
 }: CornerLinkProps) => {
   const { triangle: tri, label: text } = PLACEMENTS[corner];
   const edge = EDGES[corner];
@@ -89,15 +94,27 @@ export const CornerLink = ({
     transition: 'opacity 0.35s ease-in-out',
   };
   const shift = (FIGMA_BOX - INK_BOX) / 2;
-  const triangleStyle: CSSProperties = {
-    [edge.x]: px(tri.x + shift),
-    [edge.y]: px(tri.y + shift),
-    width: px(INK_BOX),
-    height: px(INK_BOX),
-    transform: `rotate(${tri.rotate}deg)`,
-    opacity: mode === 'title' ? 0 : 1,
-    transition: 'opacity 0.2s ease-in-out',
-  };
+  const row = layout === 'row';
+  // Row: a smaller triangle, apex to the right, after the upright label.
+  const triangleStyle: CSSProperties = row
+    ? {
+        [edge.x]: px(28),
+        [edge.y]: px(40),
+        width: px(52),
+        height: px(52),
+        transform: 'rotate(90deg)',
+        opacity: mode === 'title' ? 0 : 1,
+        transition: 'opacity 0.2s ease-in-out',
+      }
+    : {
+        [edge.x]: px(tri.x + shift),
+        [edge.y]: px(tri.y + shift),
+        width: px(INK_BOX),
+        height: px(INK_BOX),
+        transform: `rotate(${tri.rotate}deg)`,
+        opacity: mode === 'title' ? 0 : 1,
+        transition: 'opacity 0.2s ease-in-out',
+      };
   // The label is anchored by its centre: shift it back by half its size toward
   // the corner, then rotate it along the diagonal like in the design.
   const labelStyle: CSSProperties =
@@ -108,12 +125,19 @@ export const CornerLink = ({
           fontSize: `calc(${TITLE.size} * var(--k))`,
           transform: 'translate(0, 0) rotate(0deg)',
         }
-      : {
-          [edge.x]: px(text.x),
-          [edge.y]: px(text.y),
-          fontSize: px(30),
-          transform: `translate(${edge.x === 'left' ? '-50%' : '50%'}, ${edge.y === 'top' ? '-50%' : '50%'}) rotate(${text.rotate}deg)`,
-        };
+      : row
+        ? {
+            [edge.x]: px(92),
+            [edge.y]: px(52),
+            fontSize: px(30),
+            transform: 'translate(0, 0) rotate(0deg)',
+          }
+        : {
+            [edge.x]: px(text.x),
+            [edge.y]: px(text.y),
+            fontSize: px(30),
+            transform: `translate(${edge.x === 'left' ? '-50%' : '50%'}, ${edge.y === 'top' ? '-50%' : '50%'}) rotate(${text.rotate}deg)`,
+          };
   // The label glides between its corner pose and the title pose.
   labelStyle.transition =
     'left 0.3s ease-in-out, top 0.3s ease-in-out, right 0.3s ease-in-out, bottom 0.3s ease-in-out, transform 0.3s ease-in-out, font-size 0.3s ease-in-out';

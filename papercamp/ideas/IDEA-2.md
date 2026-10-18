@@ -2,7 +2,7 @@
 id: IDEA-2
 title: One living canvas across every page
 type: feature
-status: idea
+status: in-progress
 tags: [web, home, canvas, navigation, design]
 created: 2026-10-18
 ---
@@ -69,10 +69,10 @@ to.
 
 ### Phases
 
-- [ ] Scenes: turn RINGS into a `Scene` (list of closed paths + window index + content box) and make the renderer accept one; home scene unchanged
-- [ ] Morph: resample outlines to a shared point count and tween between scenes on route change, noise keeps flowing during the tween
-- [ ] Root-level canvas: render HypnoRings once in the root route under the outlet, drive the scene from the matched route, corner links switch sections instead of swapping chrome
+- [x] Scenes: turn RINGS into a `Scene` (list of closed paths + window index + content box) and make the renderer accept one; home scene unchanged
+- [x] Morph: resample outlines to a shared point count and tween between scenes on route change, noise keeps flowing during the tween
+- [x] Root-level canvas: render HypnoRings once in the root route under the outlet, drive the scene from the matched route, corner links switch sections instead of swapping chrome
 - [ ] Photos scene: window on the right, filmstrip on the left, image clipped by the live outline, keyboard and swipe paging
-- [ ] Clothes scene: t-shirt silhouette, designs rendered inside, paging between designs
+- [ ] Clothes scene: designs rendered inside the shirt, paging between designs (silhouette and morph are done)
 - [ ] Manifest and About scenes with their text layouts
 - [ ] [manual] Walk every section on desktop and phone, tune morph timing and glitch-on-transition
