@@ -28,12 +28,12 @@ const EXIT: Record<Corner, { x: number; y: number }> = {
   br: { x: -1, y: -1 },
 };
 
-/** Inside a section the way home sits on the same side, in the other corner. */
+/** Inside a section the way home sits in the diagonally opposite corner. */
 const OPPOSITE: Record<Corner, Corner> = {
-  tl: 'bl',
-  bl: 'tl',
-  tr: 'br',
-  br: 'tr',
+  tl: 'br',
+  br: 'tl',
+  tr: 'bl',
+  bl: 'tr',
 };
 
 /**
@@ -93,15 +93,17 @@ export const HomeShell = () => {
           mode={atHome ? 'corner' : pathname === link.to ? 'title' : 'hidden'}
         />
       ))}
-      {/* The way home: on the same side as the section's corner, in the other
-          corner, fading in once the morph has settled and out when leaving. */}
+      {/* The way home: in the corner diagonally opposite the section's,
+          fading in once the morph has settled and out when leaving. On the
+          manifest its corner lands on the white half, so it is drawn in ink;
+          above the film strip there is only a thin black band, so it is a row. */}
       <CornerLink
         corner={homeCorner}
         to="/"
         label="ДОДОМУ"
         mode={atHome ? 'hidden' : 'corner'}
-        // Above the film strip there is only a thin black band.
         layout={scene === 'film' ? 'row' : 'diagonal'}
+        tone={scene === 'manifest' ? 'ink' : 'paper'}
       />
       {atHome && <HomeToggles value={settings} onChange={update} />}
       <MobileNav />

@@ -68,6 +68,8 @@ type CornerLinkProps = {
   to: LinkProps['to'];
   mode?: CornerMode;
   layout?: CornerLayout;
+  /** paper: white on ink (default). ink: black, for corners on white paper. */
+  tone?: 'paper' | 'ink';
 };
 
 export const CornerLink = ({
@@ -76,6 +78,7 @@ export const CornerLink = ({
   to,
   mode = 'corner',
   layout = 'diagonal',
+  tone = 'paper',
 }: CornerLinkProps) => {
   const { triangle: tri, label: text } = PLACEMENTS[corner];
   const edge = EDGES[corner];
@@ -161,7 +164,7 @@ export const CornerLink = ({
       <span className="absolute block" style={triangleStyle} aria-hidden="true">
         <InkTriangle
           size={INK_BOX}
-          color="paper"
+          color={tone}
           seed={CORNER_SEEDS[corner]}
           filled={hot && mode === 'corner'}
           paused={mode === 'hidden'}
@@ -169,7 +172,7 @@ export const CornerLink = ({
         />
       </span>
       <span
-        className="absolute block whitespace-nowrap font-display font-semibold text-paper leading-none"
+        className={`absolute block whitespace-nowrap font-display font-semibold leading-none ${tone === 'ink' ? 'text-ink' : 'text-paper'}`}
         style={labelStyle}
       >
         {label}
