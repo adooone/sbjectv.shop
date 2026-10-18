@@ -182,7 +182,12 @@ const SHIRT_VERTICES: Vertex[] = [
   { x: 430, y: 410 },
   { x: 320, y: 350 },
 ];
+/** Corner radii: convex corners stay crisp, concave ones (collar ends, armpits)
+ * get a wide radius so the inner edge of the band never folds over itself. */
 const SHIRT_CORNER = 34;
+const SHIRT_CONCAVE_CORNER = 70;
+/** The shirt sits left of centre so the section's text fits on the right. */
+export const SHIRT_OFFSET_X = -230;
 
 /**
  * Rounds every corner of a closed polygon: each vertex becomes a quadratic
@@ -192,6 +197,7 @@ const SHIRT_CORNER = 34;
 export const roundedShape = (
   vertices: Vertex[],
   radius: number,
+  concaveRadius: number = radius,
 ): { start: Vertex; segments: Segment[] } => {
   const n = vertices.length;
   const cut = vertices.map((v, i) => {
@@ -199,7 +205,10 @@ export const roundedShape = (
     const q = vertices[(i + 1) % n];
     const lp = Math.hypot(p.x - v.x, p.y - v.y);
     const lq = Math.hypot(q.x - v.x, q.y - v.y);
-    const d = Math.min(radius, lp / 2, lq / 2);
+    // Clockwise in screen space: a left turn (negative cross) is concave.
+    const cross = (v.x - p.x) * (q.y - v.y) - (v.y - p.y) * (q.x - v.x);
+    const r = cross < 0 ? concaveRadius : radius;
+    const d = Math.min(r, lp / 2, lq / 2);
     return {
       v,
       in: { x: v.x + ((p.x - v.x) / lp) * d, y: v.y + ((p.y - v.y) / lp) * d },
@@ -215,7 +224,11 @@ export const roundedShape = (
   return { start: cut[0].out, segments };
 };
 
-const SHIRT_SHAPE = roundedShape(SHIRT_VERTICES, SHIRT_CORNER);
+const SHIRT_SHAPE = roundedShape(
+  SHIRT_VERTICES,
+  SHIRT_CORNER,
+  SHIRT_CONCAVE_CORNER,
+);
 export const SHIRT_START: Vertex = SHIRT_SHAPE.start;
 export const SHIRT: Segment[] = SHIRT_SHAPE.segments;
 
@@ -309,7 +322,7 @@ const renormalize = (points: Point[]): void => {
   }
 };
 
-const MORPH_SECONDS = 1.1;
+const MORPH_SECONDS = 0.6;
 const MORPH_POINTS = 720;
 const easeInOut = (p: number) =>
   p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
@@ -397,7 +410,7 @@ export const createRingsRenderer = (
     shirt = sampleSegments(
       SHIRT_START,
       SHIRT,
-      (v) => ({ x: v.x * sx, y: v.y * sy + offsetY }),
+      (v) => ({ x: (v.x + SHIRT_OFFSET_X) * sx, y: v.y * sy + offsetY }),
       Math.max(2, opts.segment * u),
     );
     homeR = resampleOutline(
