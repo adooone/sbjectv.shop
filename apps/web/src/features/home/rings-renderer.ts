@@ -220,21 +220,18 @@ const MORPH_POINTS = 720;
  * seconds from the moment the scene changes.
  *
  * Leaving home: each inner ring draws back a touch, then falls evenly onto
- * the innermost ring (rings in turn). When all have landed the bundle
- * drifts off and fades out while the window starts reshaping.
+ * the innermost ring (rings in turn), and when all have landed the bundle
+ * flies off; only then does the window start reshaping.
  *
  * Coming home: the window turns back into the rectangle first, then the
- * bundle fades in on its way, and the rings spring out past their places
- * and settle.
+ * bundle flies in, and the rings spring out past their places and settle.
  */
 const COLLAPSE_SECONDS = 0.55;
 const COLLAPSE_DELAY_SECONDS = 0.14;
 const FLIGHT_OUT_START = 0.72;
-const FLIGHT_OUT_SECONDS = 0.55;
-/** The window starts reshaping as soon as the bundle sets off. */
-const WINDOW_DELAY_SECONDS = FLIGHT_OUT_START;
-/** How far the bundle travels (fraction of the viewport) while it fades. */
-const FLIGHT_DISTANCE = 0.4;
+const FLIGHT_OUT_SECONDS = 0.5;
+/** The window waits for the bundle to be well on its way. */
+const WINDOW_DELAY_SECONDS = 0.9;
 /** Going home the inside waits for the window to be a rectangle again. */
 const INTERIOR_HOME_DELAY_SECONDS = 0.55;
 const FLIGHT_IN_SECONDS = 0.55;
@@ -242,14 +239,6 @@ const EXPAND_START = 0.45;
 const EXPAND_SECONDS = 0.65;
 const EXPAND_DELAY_SECONDS = 0.14;
 const INTERIOR_POINTS = 480;
-
-/** When everything has settled after a scene change, in seconds. */
-export const TRANSITION_OUT_SECONDS = WINDOW_DELAY_SECONDS + 1.0;
-export const TRANSITION_HOME_SECONDS =
-  INTERIOR_HOME_DELAY_SECONDS +
-  EXPAND_START +
-  EXPAND_SECONDS +
-  2 * EXPAND_DELAY_SECONDS;
 /** Smootherstep: zero velocity and acceleration at both ends, no kinks. */
 const easeInOut = (p: number) => p * p * p * (p * (p * 6 - 15) + 10);
 /** Eases out with a gentle overshoot, like something settling into place. */
@@ -310,7 +299,7 @@ export type RingsRenderer = {
   /** Switches the scene; the window edge morphs and the inside fades. */
   setScene: (scene: SceneId, exit?: { x: number; y: number }) => void;
   /** Screen-space offset of the inside after the last draw, in CSS px. */
-  interiorShift: () => { x: number; y: number; alpha: number };
+  interiorShift: () => { x: number; y: number };
   /** Updates options in place, keeping the running animation. */
   setOptions: (options: Partial<RingsOptions>) => void;
   /** 0 = full detail, 1 and 2 trade points and pixels for frame rate. */
@@ -378,7 +367,7 @@ export const createRingsRenderer = (
   let pendingScene: SceneId = 'home';
   /** Screen direction the inside flies off in when a section opens (unit-ish). */
   let exitDir = { x: 1, y: 1 };
-  let lastShift = { x: 0, y: 0, alpha: 1 };
+  let lastShift = { x: 0, y: 0 };
   let morphStart = -1;
   let morphFrom: SceneId = 'home';
   let morphTo: SceneId = 'home';
@@ -677,16 +666,14 @@ export const createRingsRenderer = (
       collapseOf = () => away;
       flight = away;
     }
-    // The bundle fades out as it travels, so it never has to go far.
-    const fade = 1 - flight;
+    const fade = flight >= 1 ? 0 : 1;
     // In portrait the screen direction is turned into the logical frame.
     const dir = portrait ? { x: exitDir.y, y: -exitDir.x } : exitDir;
-    const shiftX = dir.x * width * FLIGHT_DISTANCE * flight;
-    const shiftY = dir.y * height * FLIGHT_DISTANCE * flight;
+    const shiftX = dir.x * width * 1.2 * flight;
+    const shiftY = dir.y * height * 1.2 * flight;
     lastShift = {
-      x: exitDir.x * viewW * FLIGHT_DISTANCE * flight,
-      y: exitDir.y * viewH * FLIGHT_DISTANCE * flight,
-      alpha: fade,
+      x: exitDir.x * viewW * 1.2 * flight,
+      y: exitDir.y * viewH * 1.2 * flight,
     };
     const win = windowPath(time);
     const lastIndex = outlines.length - 1;
@@ -725,7 +712,6 @@ export const createRingsRenderer = (
       // Rings outside the window edge would be ink on ink.
       if (i < windowRing) return;
       if (i > windowRing && fade <= 0) return;
-      target.globalAlpha = i === windowRing ? 1 : fade;
       const sx = i === windowRing ? 0 : shiftX;
       const sy = i === windowRing ? 0 : shiftY;
       // Neighbouring rings flow in opposite directions: even ones clockwise,
@@ -827,7 +813,6 @@ export const createRingsRenderer = (
     const a = edges[windowRing + 1];
     const b = edges[windowRing + 2];
     if (opts.inkStripe && a && b && fade > 0) {
-      target.globalAlpha = fade;
       target.beginPath();
       target.moveTo(a.outer[0], a.outer[1]);
       for (let j = 2; j < a.count; j += 2) {
@@ -840,7 +825,6 @@ export const createRingsRenderer = (
       }
       target.closePath();
       target.fill('evenodd');
-      target.globalAlpha = 1;
     }
 
     // Scene extras (sprocket holes) cross-fade with the morph.

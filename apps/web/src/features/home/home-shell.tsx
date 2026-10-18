@@ -5,11 +5,7 @@ import { MobileNav, NAV_LINKS } from '@/features/nav';
 import { type Corner, CornerLink } from './corner-link';
 import { HomeToggles, useHomeSettings } from './home-toggles';
 import { HypnoRings } from './hypno-rings';
-import {
-  type SceneId,
-  TRANSITION_HOME_SECONDS,
-  TRANSITION_OUT_SECONDS,
-} from './rings-renderer';
+import type { SceneId } from './rings-renderer';
 
 /** The shape the window takes on each route. */
 const SCENES: Record<string, SceneId> = {
@@ -59,14 +55,10 @@ export const HomeShell = () => {
   // The face is moved every frame by the renderer's own flight, so it and
   // the rings leave and return as one piece.
   const faceRef = useRef<HTMLImageElement>(null);
-  const onShift = useCallback((x: number, y: number, alpha: number) => {
+  const onShift = useCallback((x: number, y: number) => {
     const face = faceRef.current;
-    if (!face) return;
-    face.style.translate = `calc(-50% + ${x}px) calc(-50% + ${y}px)`;
-    face.style.opacity = String(alpha);
+    if (face) face.style.translate = `calc(-50% + ${x}px) calc(-50% + ${y}px)`;
   }, []);
-  // Titles and the way home appear only once everything has settled.
-  const appearDelay = atHome ? TRANSITION_HOME_SECONDS : TRANSITION_OUT_SECONDS;
 
   return (
     <main className="home relative h-dvh w-full overflow-hidden bg-paper text-ink">
@@ -99,7 +91,6 @@ export const HomeShell = () => {
           to={link.to}
           label={link.label}
           mode={atHome ? 'corner' : pathname === link.to ? 'title' : 'hidden'}
-          appearDelay={appearDelay}
         />
       ))}
       {/* The way home: in the corner diagonally opposite the section's,
@@ -111,7 +102,6 @@ export const HomeShell = () => {
         to="/"
         label="ДОДОМУ"
         mode={atHome ? 'hidden' : 'corner'}
-        appearDelay={appearDelay}
         layout={scene === 'film' ? 'row' : 'diagonal'}
         tone={scene === 'manifest' ? 'ink' : 'paper'}
       />
