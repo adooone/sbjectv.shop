@@ -215,6 +215,19 @@ const MORPH_SHAPE = { start: 0.32, end: 1, stagger: 0.45 };
 const MORPH_DIRECT_SECONDS = 0.75;
 const MORPH_DIRECT = { start: 0, end: 1, stagger: 0.45 };
 const MORPH_POINTS = 720;
+/**
+ * The inside (inner rings, stripe, face) has its own, slower timeline. Each
+ * inner ring collapses onto the innermost one point by point (its left side
+ * first), rings start one after another, then everything flies off.
+ */
+const INTERIOR_OUT_SECONDS = 1.6;
+const INTERIOR_HOME_SECONDS = 1.3;
+const INTERIOR_POINTS = 480;
+/** Fractions of the interior timeline. */
+const COLLAPSE_LENGTH = 0.42;
+const COLLAPSE_DELAY = 0.24;
+const COLLAPSE_SPREAD = 0.3;
+const FLIGHT_START = 0.68;
 /** Smootherstep: zero velocity and acceleration at both ends, no kinks. */
 const easeInOut = (p: number) => p * p * p * (p * (p * 6 - 15) + 10);
 /** Eases out with a gentle overshoot, like something settling into place. */
@@ -301,9 +314,11 @@ export const createRingsRenderer = (
   let u = 1;
   let half = DESIGN.stroke / 2;
   let outlines: Point[][] = [];
-  /** The rings' rectangles in logical px (for the inside's collapse). */
-  let rects: Ring[] = [];
-  let segmentPx = 4;
+  /** Inner rings and the innermost ring resampled to a shared count, plus
+   * per-point start delays (left side first) for the collapse. */
+  let collapseR: Point[][] = [];
+  let collapseKey: number[][] = [];
+  let innermostR: Point[] = [];
   let lengths: number[] = [];
   let geometry: Partial<Record<SceneId, SceneGeometry>> = {};
   /** Last known size, so options and quality changes can rebuild geometry. */
@@ -391,8 +406,19 @@ export const createRingsRenderer = (
     }));
     outlines = scaled.map((ring) => roundedRectOutline(ring, segment));
     lengths = scaled.map(perimeter);
-    rects = scaled;
-    segmentPx = segment;
+    const last = outlines.length - 1;
+    innermostR = resampleOutline(
+      outlines[last],
+      lengths[last],
+      INTERIOR_POINTS,
+    );
+    collapseR = outlines.map((o, i) =>
+      resampleOutline(o, lengths[i], INTERIOR_POINTS),
+    );
+    collapseKey = collapseR.map((R) => {
+      const b = bounds(R);
+      return R.map((p) => (p.x - b.x) / (b.w || 1));
+    });
 
     const map = (v: { x: number; y: number }) => ({
       x: v.x * sx,
@@ -587,8 +613,10 @@ export const createRingsRenderer = (
     // face, then that ring and the face fly off screen away from the
     // section's corner, accelerating. Going home plays it backwards: fly in,
     // then spread out. `leaving` is 0 at home and 1 in a section.
+    const interiorSeconds =
+      morphTo === 'home' ? INTERIOR_HOME_SECONDS : INTERIOR_OUT_SECONDS;
     const raw =
-      morphStart < 0 ? 1 : clamp01((time - morphStart) / morphSeconds());
+      morphStart < 0 ? 1 : clamp01((time - morphStart) / interiorSeconds);
     const leaving =
       morphStart < 0
         ? scene === 'home'
@@ -599,13 +627,14 @@ export const createRingsRenderer = (
           : morphFrom === 'home'
             ? raw
             : 1;
-    const collapseOf = (i: number) => {
-      // Ring 1 (just inside the window) goes first, the next clearly later;
-      // each draws back a little before moving and overshoots before it lands.
-      const delay = (i - windowRing - 1) * 0.22;
-      return easeInOutBack(clamp01((leaving - delay) / 0.4));
+    /** Collapse progress of ring i at point j: rings start in turn, and
+     * within a ring the left side goes first; drawn back, then overshoot. */
+    const collapseAt = (i: number, key: number) => {
+      const start =
+        (i - windowRing - 1) * COLLAPSE_DELAY + key * COLLAPSE_SPREAD;
+      return easeInOutBack(clamp01((leaving - start) / COLLAPSE_LENGTH), 1.9);
     };
-    const flightRaw = clamp01((leaving - 0.6) / 0.4);
+    const flightRaw = clamp01((leaving - FLIGHT_START) / (1 - FLIGHT_START));
     const flight = flightRaw * flightRaw * flightRaw;
     const fade = flight >= 1 ? 0 : 1;
     // In portrait the screen direction is turned into the logical frame.
@@ -617,24 +646,38 @@ export const createRingsRenderer = (
       y: exitDir.y * viewH * 1.2 * flight,
     };
     const win = windowPath(time);
-    const innermost = rects[rects.length - 1];
+    const lastIndex = outlines.length - 1;
     const rings = outlines.map((points, i) => {
       if (i === windowRing) return win;
-      const t = i > windowRing && i < rects.length - 1 ? collapseOf(i) : 0;
-      if (t <= 0 || !innermost) return { points, length: lengths[i] };
-      // Tween this ring's rectangle onto the innermost one.
-      const r = rects[i];
-      const rect = {
-        x: r.x + (innermost.x - r.x) * t,
-        y: r.y + (innermost.y - r.y) * t,
-        w: r.w + (innermost.w - r.w) * t,
-        h: r.h + (innermost.h - r.h) * t,
-        r: r.r + (innermost.r - r.r) * t,
-      };
-      return {
-        points: roundedRectOutline(rect, segmentPx),
-        length: perimeter(rect),
-      };
+      const collapsing = i > windowRing && i < lastIndex && leaving > 0;
+      if (!collapsing) return { points, length: lengths[i] };
+      // Tween this ring onto the innermost one, point by point.
+      const R = collapseR[i];
+      const keys = collapseKey[i];
+      const target = innermostR;
+      let sum = 0;
+      const tweened = R.map((p, j) => {
+        const t = collapseAt(i, keys[j]);
+        sum += t;
+        const q = target[j];
+        return {
+          x: p.x + (q.x - p.x) * t,
+          y: p.y + (q.y - p.y) * t,
+          nx: 0,
+          ny: 0,
+          s: 0,
+        };
+      });
+      if (sum <= 0) return { points, length: lengths[i] };
+      // Arc length from the tweened polygon itself.
+      let s = 0;
+      for (let j = 0; j < tweened.length; j++) {
+        tweened[j].s = s;
+        const q = tweened[(j + 1) % tweened.length];
+        s += Math.hypot(q.x - tweened[j].x, q.y - tweened[j].y);
+      }
+      renormalize(tweened);
+      return { points: tweened, length: s };
     });
 
     rings.forEach(({ points, length }, i) => {
