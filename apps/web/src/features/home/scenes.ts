@@ -135,9 +135,27 @@ const shift = (vertices: Vertex[], dx: number, dy: number) =>
  * tall, y down). The renderer lays everything out in the landscape frame and
  * turns it a quarter clockwise, so a phone point (x, y) is the landscape
  * point (y, 1024 − x). A proper rotation, so clockwise stays clockwise.
+ *
+ * The morph pairs points by distance along the outline from its start, and
+ * the home rectangle starts at the landscape top-left, which on the phone is
+ * the top-right corner. So a phone shape starts at its vertex nearest that
+ * corner; otherwise the morph would wind a quarter turn around the frame.
  */
-const toLandscape = (vertices: Vertex[]) =>
-  vertices.map((v) => ({ x: v.y, y: 1024 - v.x }));
+const toLandscape = (vertices: Vertex[]) => {
+  let first = 0;
+  let best = Number.POSITIVE_INFINITY;
+  vertices.forEach((v, i) => {
+    const d = (1024 - v.x) ** 2 + v.y ** 2;
+    if (d < best) {
+      best = d;
+      first = i;
+    }
+  });
+  return [...vertices.slice(first), ...vertices.slice(0, first)].map((v) => ({
+    x: v.y,
+    y: 1024 - v.x,
+  }));
+};
 
 /**
  * ФУТБОЛКИ: a plain t-shirt right of centre (text goes on the left), clockwise

@@ -263,7 +263,8 @@ const overshootOut = (p: number, c1 = 1.7) => {
 };
 
 /** Axis-aligned bounds of a closed outline. */
-const bounds = (points: Point[]) => {
+type Box = { x: number; y: number; w: number; h: number };
+const bounds = (points: Point[]): Box => {
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
@@ -433,6 +434,13 @@ export const createRingsRenderer = (
       x: v.x * sx,
       y: v.y * sy + offsetY,
     });
+    // Stagger keys follow the screen, not the logical frame: on a phone the
+    // top of the screen is the landscape left and its left the landscape
+    // bottom, so "down the screen" and "across the screen" swap axes.
+    const down = (p: Point, b: Box) =>
+      portrait ? (p.x - b.x) / (b.w || 1) : (p.y - b.y) / (b.h || 1);
+    const across = (p: Point, b: Box) =>
+      portrait ? 1 - (p.y - b.y) / (b.h || 1) : (p.x - b.x) / (b.w || 1);
     const geometryOf = (outline: Outline, ink: Ring[]): SceneGeometry => {
       const R = resampleOutline(outline.points, outline.length, MORPH_POINTS);
       const b = bounds(outline.points);
@@ -447,11 +455,9 @@ export const createRingsRenderer = (
           length: boxLength,
           R: resampleOutline(boxOutline, boxLength, MORPH_POINTS),
         },
-        growKey: R.map((p) => (p.y - b.y) / (b.h || 1)),
+        growKey: R.map((p) => down(p, b)),
         releaseKey: R.map(
-          (p) =>
-            0.6 * (1 - (p.y - b.y) / (b.h || 1)) +
-            0.4 * (1 - (p.x - b.x) / (b.w || 1)),
+          (p) => 0.6 * (1 - down(p, b)) + 0.4 * (1 - across(p, b)),
         ),
         ink,
       };
@@ -480,7 +486,7 @@ export const createRingsRenderer = (
     }
     const home = geometry.home as SceneGeometry;
     const hb = bounds(home.R);
-    slideKey = home.R.map((p) => (p.x - hb.x) / (hb.w || 1));
+    slideKey = home.R.map((p) => across(p, hb));
   };
 
   /** How long the current morph takes: two stages from home, one otherwise. */
