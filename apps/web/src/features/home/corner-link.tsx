@@ -1,4 +1,4 @@
-import { Link, type LinkProps } from '@tanstack/react-router';
+import { Link, type LinkProps, useRouterState } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
 import { InkTriangle } from '@/features/nav/ink-triangle';
 
@@ -58,6 +58,9 @@ type CornerLinkProps = {
 export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
   const { triangle: tri, label: text } = PLACEMENTS[corner];
   const edge = EDGES[corner];
+  // The corner of the section you are in leads back home.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const active = pathname === to;
 
   // --corner-inset (index.css) pushes the whole corner group inward.
   const box: CSSProperties = {
@@ -85,7 +88,8 @@ export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
 
   return (
     <Link
-      to={to}
+      to={active ? '/' : to}
+      aria-current={active ? 'page' : undefined}
       className="group absolute block overflow-visible outline-none portrait:hidden"
       style={box}
     >
@@ -98,7 +102,7 @@ export const CornerLink = ({ corner, label, to }: CornerLinkProps) => {
         />
       </span>
       <span
-        className="absolute block whitespace-nowrap font-display font-semibold text-paper leading-none underline-offset-4 group-hover:underline group-focus-visible:underline"
+        className={`absolute block whitespace-nowrap font-display font-semibold text-paper leading-none underline-offset-4 group-hover:underline group-focus-visible:underline ${active ? 'underline' : ''}`}
         style={labelStyle}
       >
         {label}

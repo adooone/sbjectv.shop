@@ -150,9 +150,133 @@ export const roundedRectOutline = (ring: Ring, segment: number): Point[] => {
   return points;
 };
 
+export type SceneId = 'home' | 'shirt';
+
+type Vertex = { x: number; y: number };
+/** A straight segment or a quadratic curve to `to`. */
+type Segment = { to: Vertex; c?: Vertex };
+
+/**
+ * A plain t-shirt silhouette in the Figma frame, clockwise from the left
+ * shoulder (the point that matches the rectangle's top-left corner, so the
+ * morph twists as little as possible).
+ */
+export const SHIRT_START: Vertex = { x: 430, y: 195 };
+export const SHIRT: Segment[] = [
+  { to: { x: 610, y: 165 } },
+  { c: { x: 720, y: 275 }, to: { x: 830, y: 165 } },
+  { to: { x: 1010, y: 195 } },
+  { to: { x: 1120, y: 350 } },
+  { to: { x: 1010, y: 410 } },
+  { to: { x: 965, y: 395 } },
+  { to: { x: 945, y: 860 } },
+  { to: { x: 495, y: 860 } },
+  { to: { x: 475, y: 395 } },
+  { to: { x: 430, y: 410 } },
+  { to: { x: 320, y: 350 } },
+  { to: SHIRT_START },
+];
+
+/** Samples a closed path of lines and quadratic curves, clockwise. */
+export const sampleSegments = (
+  start: Vertex,
+  segments: Segment[],
+  map: (v: Vertex) => Vertex,
+  segment: number,
+): { points: Point[]; length: number } => {
+  const points: Point[] = [];
+  let s = 0;
+  let from = map(start);
+  for (const seg of segments) {
+    const to = map(seg.to);
+    const ctrl = seg.c ? map(seg.c) : null;
+    const at = (t: number): Vertex =>
+      ctrl
+        ? {
+            x: (1 - t) ** 2 * from.x + 2 * (1 - t) * t * ctrl.x + t * t * to.x,
+            y: (1 - t) ** 2 * from.y + 2 * (1 - t) * t * ctrl.y + t * t * to.y,
+          }
+        : { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+    const tangent = (t: number): Vertex =>
+      ctrl
+        ? {
+            x: 2 * (1 - t) * (ctrl.x - from.x) + 2 * t * (to.x - ctrl.x),
+            y: 2 * (1 - t) * (ctrl.y - from.y) + 2 * t * (to.y - ctrl.y),
+          }
+        : { x: to.x - from.x, y: to.y - from.y };
+    // Approximate length by walking the curve.
+    let len = 0;
+    let prev = at(0);
+    for (let i = 1; i <= 16; i++) {
+      const p = at(i / 16);
+      len += Math.hypot(p.x - prev.x, p.y - prev.y);
+      prev = p;
+    }
+    const steps = Math.max(1, Math.round(len / segment));
+    for (let i = 0; i < steps; i++) {
+      const t = i / steps;
+      const p = at(t);
+      const d = tangent(t);
+      const dl = Math.hypot(d.x, d.y) || 1;
+      // Outward normal of a clockwise path in screen space (y down).
+      points.push({ x: p.x, y: p.y, nx: d.y / dl, ny: -d.x / dl, s });
+      s += len / steps;
+    }
+    from = to;
+  }
+  return { points, length: s };
+};
+
+/** Resamples a closed outline to `count` points evenly spaced by arc length. */
+export const resampleOutline = (
+  points: Point[],
+  length: number,
+  count: number,
+): Point[] => {
+  const out: Point[] = [];
+  let j = 0;
+  for (let i = 0; i < count; i++) {
+    const target = (i / count) * length;
+    while (j + 1 < points.length && points[j + 1].s <= target) j++;
+    const a = points[j];
+    const b = points[(j + 1) % points.length];
+    const bs = j + 1 < points.length ? b.s : length;
+    const t = bs > a.s ? (target - a.s) / (bs - a.s) : 0;
+    out.push({
+      x: a.x + (b.x - a.x) * t,
+      y: a.y + (b.y - a.y) * t,
+      nx: 0,
+      ny: 0,
+      s: target,
+    });
+  }
+  return out;
+};
+
+/** Recomputes outward normals of a closed clockwise outline from its neighbours. */
+const renormalize = (points: Point[]): void => {
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const p = points[(i + n - 1) % n];
+    const q = points[(i + 1) % n];
+    const dx = q.x - p.x;
+    const dy = q.y - p.y;
+    const l = Math.hypot(dx, dy) || 1;
+    points[i].nx = dy / l;
+    points[i].ny = -dx / l;
+  }
+};
+
+const MORPH_SECONDS = 1.1;
+const MORPH_POINTS = 720;
+const easeInOut = (p: number) =>
+  p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
+
 export type RingsRenderer = {
   resize: (width: number, height: number, dpr: number) => void;
   draw: (time: number) => void;
+  /** Switches the scene; the window edge morphs and the inside fades. */
+  setScene: (scene: SceneId) => void;
 };
 
 export const createRingsRenderer = (
@@ -179,6 +303,14 @@ export const createRingsRenderer = (
   let half = DESIGN.stroke / 2;
   let outlines: Point[][] = [];
   let lengths: number[] = [];
+  /** The shirt outline and the two resampled outlines the morph tweens. */
+  let shirt: { points: Point[]; length: number } = { points: [], length: 0 };
+  let homeR: Point[] = [];
+  let shirtR: Point[] = [];
+  let scene: SceneId = 'home';
+  let pendingScene: SceneId = 'home';
+  let morphStart = -1;
+  let morphTo: SceneId = 'home';
 
   const resize = (w: number, h: number, dpr: number) => {
     viewW = w;
@@ -218,6 +350,53 @@ export const createRingsRenderer = (
       roundedRectOutline(ring, Math.max(2, opts.segment * u)),
     );
     lengths = scaled.map(perimeter);
+
+    const windowRing = Math.max(0, Math.min(opts.windowRing, RINGS.length - 1));
+    shirt = sampleSegments(
+      SHIRT_START,
+      SHIRT,
+      (v) => ({ x: v.x * sx, y: v.y * sy + offsetY }),
+      Math.max(2, opts.segment * u),
+    );
+    homeR = resampleOutline(
+      outlines[windowRing],
+      lengths[windowRing],
+      MORPH_POINTS,
+    );
+    shirtR = resampleOutline(shirt.points, shirt.length, MORPH_POINTS);
+  };
+
+  /** 0 = home rectangle, 1 = shirt, in between while morphing. */
+  const shirtness = (time: number): number => {
+    const p =
+      morphStart < 0 ? 1 : Math.min(1, (time - morphStart) / MORPH_SECONDS);
+    const e = easeInOut(p);
+    return morphTo === 'shirt' ? e : 1 - e;
+  };
+
+  /** The window outline for this frame: home, shirt, or a tween of both. */
+  const windowPath = (
+    time: number,
+    windowRing: number,
+  ): { points: Point[]; length: number } => {
+    const t = shirtness(time);
+    if (t <= 0)
+      return { points: outlines[windowRing], length: lengths[windowRing] };
+    if (t >= 1) return shirt;
+    const length =
+      lengths[windowRing] + (shirt.length - lengths[windowRing]) * t;
+    const points = homeR.map((a, j) => {
+      const b = shirtR[j];
+      return {
+        x: a.x + (b.x - a.x) * t,
+        y: a.y + (b.y - a.y) * t,
+        nx: 0,
+        ny: 0,
+        s: (j / MORPH_POINTS) * length,
+      };
+    });
+    renormalize(points);
+    return { points, length };
   };
 
   /** Draws the ink (rings and window mask) into one context. */
@@ -238,10 +417,18 @@ export const createRingsRenderer = (
     const windowRing = opts.window ? opts.windowRing : -1;
     // Outer and inner edges per ring, kept for the stripe fill below.
     const edges: { outer: number[]; inner: number[] }[] = [];
+    // Everything inside the window fades out as the shirt takes over.
+    const fade = 1 - shirtness(time);
+    const win = windowPath(time, Math.max(0, windowRing));
+    const rings = outlines.map((points, i) =>
+      i === windowRing ? win : { points, length: lengths[i] },
+    );
 
-    outlines.forEach((points, i) => {
+    rings.forEach(({ points, length }, i) => {
       // Rings outside the window edge would be ink on ink.
       if (i < windowRing) return;
+      if (i > windowRing && fade <= 0) return;
+      target.globalAlpha = i === windowRing ? 1 : fade;
       // Neighbouring rings flow in opposite directions: even ones clockwise,
       // odd ones counter-clockwise.
       const direction = i % 2 === 0 ? 1 : -1;
@@ -250,7 +437,6 @@ export const createRingsRenderer = (
       // The noise is sampled along circles in noise space, so it is periodic in
       // the arc length and the band closes without a seam. Circle radius sets
       // the wavelength; rotating the circle over time makes the wobble travel.
-      const length = lengths[i];
       const r1 = length / (opts.wavelength * u * TAU);
       const r2 = r1 / 3.1;
       const r3 = length / (opts.thicknessWavelength * u * TAU);
@@ -339,11 +525,13 @@ export const createRingsRenderer = (
       target.fill();
     });
 
+    target.globalAlpha = 1;
     // Black stripe: from the outer edge of the first ring inside the window
     // to the inner edge of the next one (even-odd fill of the two outlines).
     const a = edges[windowRing + 1];
     const b = edges[windowRing + 2];
-    if (opts.inkStripe && a && b) {
+    if (opts.inkStripe && a && b && fade > 0) {
+      target.globalAlpha = fade;
       target.beginPath();
       target.moveTo(a.outer[0], a.outer[1]);
       for (let j = 2; j < a.outer.length; j += 2) {
@@ -356,25 +544,26 @@ export const createRingsRenderer = (
       }
       target.closePath();
       target.fill('evenodd');
+      target.globalAlpha = 1;
     }
   };
 
   // Glitch schedule and scratch canvases (created on first use).
   let glitchAt = 7 + Math.random() * 6;
   let glitchUntil = -1;
-  let scene: HTMLCanvasElement | null = null;
+  let sceneCanvas: HTMLCanvasElement | null = null;
   let tint: HTMLCanvasElement | null = null;
 
   const scratch = (): [HTMLCanvasElement, HTMLCanvasElement] => {
-    scene ??= document.createElement('canvas');
+    sceneCanvas ??= document.createElement('canvas');
     tint ??= document.createElement('canvas');
-    for (const el of [scene, tint]) {
+    for (const el of [sceneCanvas, tint]) {
       if (el.width !== canvas.width || el.height !== canvas.height) {
         el.width = canvas.width;
         el.height = canvas.height;
       }
     }
-    return [scene, tint];
+    return [sceneCanvas, tint];
   };
 
   // Deterministic jitter per 50 ms step so a burst flickers instead of smearing.
@@ -383,7 +572,24 @@ export const createRingsRenderer = (
     return x - Math.floor(x);
   };
 
+  const setScene = (next: SceneId) => {
+    pendingScene = next;
+  };
+
   const draw = (time: number) => {
+    if (pendingScene !== scene) {
+      scene = pendingScene;
+      morphTo = scene;
+      morphStart = time;
+      // A glitch burst hides the seams of the morph.
+      if (opts.glitch) {
+        glitchUntil = time + opts.glitchDuration;
+        glitchAt =
+          glitchUntil +
+          opts.glitchEvery[0] +
+          Math.random() * (opts.glitchEvery[1] - opts.glitchEvery[0]);
+      }
+    }
     if (opts.glitch && glitchUntil < 0 && time >= glitchAt) {
       glitchUntil = time + opts.glitchDuration;
       const [min, max] = opts.glitchEvery;
@@ -450,5 +656,5 @@ export const createRingsRenderer = (
     ctx.setTransform(dprScale, 0, 0, dprScale, 0, 0);
   };
 
-  return { resize, draw };
+  return { resize, draw, setScene };
 };
