@@ -1,4 +1,5 @@
 import { createNoise2D } from 'simplex-noise';
+import { blinkAt, FACE_FRAME, faceBands, type Gesture, GESTURES } from './face';
 import {
   SECTION_SHAPES,
   type SceneId,
@@ -24,6 +25,11 @@ export type { SceneId } from './scenes';
 export type Ring = { x: number; y: number; w: number; h: number; r: number };
 
 export const DESIGN = { width: 1440, height: 1024, stroke: 30 } as const;
+/** Width of the face in design px, and its pulse (scale and tilt) period. */
+const FACE_WIDTH = 139;
+const FACE_PULSE_SECONDS = 6;
+/** How long a gesture runs; it starts with the rings' collapse. */
+const GESTURE_SECONDS = 1.1;
 
 export const RINGS: readonly Ring[] = [
   { x: 146, y: 103, w: 1146, h: 815, r: 90 },
@@ -294,9 +300,14 @@ export type RingsRenderer = {
   /** Switches the scene; the window edge morphs and the inside fades. */
   setScene: (scene: SceneId, exit?: { x: number; y: number }) => void;
   /** Screen-space offset of the inside after the last draw, in CSS px. */
-  interiorShift: () => { x: number; y: number };
   /** Updates options in place, keeping the running animation. */
   setOptions: (options: Partial<RingsOptions>) => void;
+  /** Whether a screen point (CSS px) lies on the face while it is at home. */
+  hitFace: (x: number, y: number) => boolean;
+  /** Makes the face pull a random gesture, unless one is already under way. */
+  poke: () => void;
+  /** Where the pointer is (CSS px) for the face to look at; null to look ahead. */
+  setPointer: (point: { x: number; y: number } | null) => void;
   /** 0 = full detail, 1 and 2 trade points and pixels for frame rate. */
   setQuality: (level: 0 | 1 | 2) => void;
 };
@@ -335,6 +346,8 @@ export const createRingsRenderer = (
   let lastDpr = 1;
   /** Adaptive quality: fewer points along the outlines and fewer pixels. */
   let qualitySegment = 1;
+  /** Sampling step along the outlines, logical px (set by layout). */
+  let segmentPx = 4;
   let qualityPixels = 1;
   /** Reused per-ring scratch buffers, so a frame allocates nothing. */
   type RingBuffers = {
@@ -362,8 +375,19 @@ export const createRingsRenderer = (
   let pendingScene: SceneId = 'home';
   /** Screen direction the inside flies off in when a section opens (unit-ish). */
   let exitDir = { x: 1, y: 1 };
-  let lastShift = { x: 0, y: 0 };
   let morphStart = -1;
+  // The face's gesture on the way out: picked at random, never twice in a row.
+  let gesture: Gesture | null = null;
+  let gestureStart = -1;
+  let lastTime = 0;
+  // The gaze eases toward the pointer; both are −1..1 of the half-viewport.
+  const gazeTarget = { x: 0, y: 0 };
+  const gaze = { x: 0, y: 0 };
+  const startGesture = (time: number) => {
+    const choices = GESTURES.filter((g) => g !== gesture);
+    gesture = choices[Math.floor(Math.random() * choices.length)];
+    gestureStart = time;
+  };
   let morphFrom: SceneId = 'home';
   let morphTo: SceneId = 'home';
 
@@ -404,6 +428,7 @@ export const createRingsRenderer = (
     half = (DESIGN.stroke * k) / 2;
     u = k;
     const segment = Math.max(2, opts.segment * u * qualitySegment);
+    segmentPx = segment;
 
     const scaled = RINGS.map((ring) => ({
       x: ring.x * sx,
@@ -668,10 +693,6 @@ export const createRingsRenderer = (
     const dir = portrait ? { x: exitDir.y, y: -exitDir.x } : exitDir;
     const shiftX = dir.x * width * 1.2 * flight;
     const shiftY = dir.y * height * 1.2 * flight;
-    lastShift = {
-      x: exitDir.x * viewW * 1.2 * flight,
-      y: exitDir.y * viewH * 1.2 * flight,
-    };
     const win = windowPath(time);
     const lastIndex = outlines.length - 1;
     const rings = outlines.map((points, i) => {
@@ -803,6 +824,55 @@ export const createRingsRenderer = (
       target.fill();
     });
 
+    // Жека in the middle: ink strokes that breathe, blink and pulse, and
+    // fly off and fade with the inner rings. On a phone the frame is turned
+    // a quarter, so the face turns back to stand upright on the screen.
+    if (fade > 0) {
+      const base = (FACE_WIDTH * k) / FACE_FRAME.width;
+      const pulse = 0.5 - 0.5 * Math.cos((time / FACE_PULSE_SECONDS) * TAU);
+      const scale = base * (1 + 0.07 * pulse);
+      // The whole face leans a little toward where it looks. The gaze is in
+      // screen axes; in portrait the logical frame is turned a quarter.
+      const leanX = portrait ? gaze.y : gaze.x;
+      const leanY = portrait ? -gaze.x : gaze.y;
+      const angle =
+        ((-2 + 4 * pulse + 3 * gaze.x) * Math.PI) / 180 +
+        (portrait ? -Math.PI / 2 : 0);
+      target.save();
+      target.globalAlpha = fade;
+      target.translate(
+        cx + shiftX + leanX * 14 * k,
+        cy + shiftY + leanY * 10 * k,
+      );
+      target.rotate(angle);
+      target.scale(scale, scale);
+      target.translate(-FACE_FRAME.width / 2, -FACE_FRAME.height / 2);
+      const step = Math.max(3, segmentPx / scale / 4);
+      const pose = {
+        blink: blinkAt(time),
+        gaze,
+        gesture:
+          gesture && time - gestureStart < GESTURE_SECONDS
+            ? { kind: gesture, t: (time - gestureStart) / GESTURE_SECONDS }
+            : undefined,
+      };
+      for (const band of faceBands(time, noise, pose, step)) {
+        const poly = band.polygon;
+        target.beginPath();
+        target.moveTo(poly[0], poly[1]);
+        for (let j = 2; j < poly.length; j += 2) {
+          target.lineTo(poly[j], poly[j + 1]);
+        }
+        target.closePath();
+        target.fill();
+        for (const cap of band.caps) {
+          target.beginPath();
+          target.arc(cap.x, cap.y, cap.r, 0, TAU);
+          target.fill();
+        }
+      }
+      target.restore();
+    }
     target.globalAlpha = 1;
 
     // Scene extras (sprocket holes) cross-fade with the morph.
@@ -861,11 +931,18 @@ export const createRingsRenderer = (
   };
 
   const draw = (time: number) => {
+    const dt = Math.min(0.1, Math.max(0, time - lastTime));
+    lastTime = time;
+    // Ease the gaze toward its target (a 0.12 s time constant).
+    const ease = 1 - Math.exp(-dt / 0.12);
+    gaze.x += (gazeTarget.x - gaze.x) * ease;
+    gaze.y += (gazeTarget.y - gaze.y) * ease;
     if (pendingScene !== scene) {
       morphFrom = scene;
       scene = pendingScene;
       morphTo = scene;
       morphStart = time;
+      if (morphFrom === 'home') startGesture(time);
       // A glitch burst hides the seams of the morph.
       if (opts.glitch) {
         glitchUntil = time + opts.glitchDuration;
@@ -941,12 +1018,44 @@ export const createRingsRenderer = (
     ctx.setTransform(dprScale, 0, 0, dprScale, 0, 0);
   };
 
+  // The face sits at the screen centre when at home; on a phone it is turned
+  // upright, so its box is the frame's box turned too.
+  const hitFace = (x: number, y: number) => {
+    // Only at home, once the inside has flown back and settled.
+    const settled =
+      scene === 'home' &&
+      pendingScene === 'home' &&
+      (morphStart < 0 || lastTime - morphStart > 2.5);
+    if (!settled) return false;
+    const w = FACE_WIDTH * k * 1.15;
+    const h = (w * FACE_FRAME.height) / FACE_FRAME.width;
+    const dx = Math.abs(x - viewW / 2);
+    const dy = Math.abs(y - viewH / 2);
+    return dx <= w / 2 && dy <= h / 2;
+  };
+  const setPointer = (point: { x: number; y: number } | null) => {
+    if (!point || viewW === 0 || viewH === 0) {
+      gazeTarget.x = 0;
+      gazeTarget.y = 0;
+      return;
+    }
+    const clamp = (v: number) => Math.max(-1, Math.min(1, v));
+    gazeTarget.x = clamp((point.x - viewW / 2) / (viewW / 2));
+    gazeTarget.y = clamp((point.y - viewH / 2) / (viewH / 2));
+  };
+  const poke = () => {
+    if (gesture && lastTime - gestureStart < GESTURE_SECONDS) return;
+    startGesture(lastTime);
+  };
+
   return {
     resize,
     draw,
     setScene,
     setOptions,
     setQuality,
-    interiorShift: () => lastShift,
+    hitFace,
+    poke,
+    setPointer,
   };
 };

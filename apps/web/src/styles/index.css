@@ -98,24 +98,12 @@
   /* Navigation labels. */
   --font-display: "KyivType Titling", "KyivType Serif", Georgia, serif;
 
-  --animate-face: face-pulse 6s ease-in-out infinite;
-
   @keyframes fade-in {
     from {
       opacity: 0;
     }
     to {
       opacity: 1;
-    }
-  }
-
-  @keyframes face-pulse {
-    0%,
-    100% {
-      transform: scale(1) rotate(-2deg);
-    }
-    50% {
-      transform: scale(1.07) rotate(2deg);
     }
   }
 }
@@ -135,7 +123,6 @@
     --k: min(100vw / 1440, 100vh / 1024);
     /* Corner links never shrink below half size, so labels stay readable on phones. */
     --kc: max(var(--k), 0.5px);
-    --face: calc(139 * var(--k));
     /* The window leaves big black corners, so the corner links sit a bit inward. */
     --corner-inset: calc(24 * var(--kc));
   }
@@ -148,12 +135,6 @@
          plus the 30 px stroke) spans the width. */
       --k: min(100vh / 1440, 100vw / 845);
       --kc: max(var(--k), 0.6px);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .animate-face {
-      animation: none;
     }
   }
 }

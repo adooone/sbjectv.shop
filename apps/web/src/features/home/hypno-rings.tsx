@@ -19,8 +19,6 @@ type HypnoRingsProps = {
   scene?: SceneId;
   /** Screen direction the inside flies off in when a section opens. */
   exit?: { x: number; y: number };
-  /** Called after every draw with the inside's offset, for DOM that flies with it. */
-  onShift?: (x: number, y: number) => void;
 };
 
 /**
@@ -37,7 +35,6 @@ export const HypnoRings = ({
   options,
   scene = 'home',
   exit,
-  onShift,
 }: HypnoRingsProps) => {
   const ref = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<RingsRenderer | null>(null);
@@ -45,8 +42,6 @@ export const HypnoRings = ({
   sceneRef.current = scene;
   const exitRef = useRef(exit);
   exitRef.current = exit;
-  const onShiftRef = useRef(onShift);
-  onShiftRef.current = onShift;
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -65,8 +60,6 @@ export const HypnoRings = ({
     const resize = () => {
       renderer.resize(canvas.clientWidth, canvas.clientHeight, cappedDpr());
       renderer.draw(clock.now());
-      const s = renderer.interiorShift();
-      onShiftRef.current?.(s.x, s.y);
     };
 
     resize();
@@ -103,12 +96,45 @@ export const HypnoRings = ({
         renderer.setQuality(quality);
       }
       renderer.draw(clock.tick(now));
-      const s = renderer.interiorShift();
-      onShiftRef.current?.(s.x, s.y);
     };
     const unsubscribe = reduced ? null : subscribeTick(tick);
 
+    // Hovering onto the face (or tapping it on a phone) makes it pull a
+    // gesture, once per visit: the gesture fires on entering the face, not
+    // while the pointer stays on it.
+    // The face also follows the pointer with its eyes.
+    let onFace = false;
+    const onPointerMove = (e: PointerEvent) => {
+      renderer.setPointer({ x: e.offsetX, y: e.offsetY });
+      if (e.pointerType !== 'mouse') return;
+      const inside = renderer.hitFace(e.offsetX, e.offsetY);
+      if (inside && !onFace) renderer.poke();
+      onFace = inside;
+    };
+    const onPointerLeave = () => {
+      onFace = false;
+      renderer.setPointer(null);
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      renderer.setPointer({ x: e.offsetX, y: e.offsetY });
+      if (e.pointerType === 'mouse') return;
+      if (renderer.hitFace(e.offsetX, e.offsetY)) renderer.poke();
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') renderer.setPointer(null);
+    };
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerleave', onPointerLeave);
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerUp);
+
     return () => {
+      canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerleave', onPointerLeave);
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointerup', onPointerUp);
+      canvas.removeEventListener('pointercancel', onPointerUp);
       unsubscribe?.();
       observer?.disconnect();
       if (!observer) window.removeEventListener('resize', resize);

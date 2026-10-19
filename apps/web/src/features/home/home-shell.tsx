@@ -1,6 +1,4 @@
 import { Outlet, useRouterState } from '@tanstack/react-router';
-import { useCallback, useRef } from 'react';
-import zheka from '@/assets/zheka.png';
 import { MobileHome, MobileNav, NAV_LINKS } from '@/features/nav';
 import { type Corner, CornerLink } from './corner-link';
 import { HypnoRings } from './hypno-rings';
@@ -46,13 +44,6 @@ export const HomeShell = () => {
   const current = NAV_LINKS.find((link) => link.to === pathname);
   const homeCorner = OPPOSITE[current?.corner ?? 'tl'];
   const exit = EXIT[current?.corner ?? 'tl'];
-  // The face is moved every frame by the renderer's own flight, so it and
-  // the rings leave and return as one piece.
-  const faceRef = useRef<HTMLImageElement>(null);
-  const onShift = useCallback((x: number, y: number) => {
-    const face = faceRef.current;
-    if (face) face.style.translate = `calc(-50% + ${x}px) calc(-50% + ${y}px)`;
-  }, []);
 
   return (
     <main className="home relative h-dvh w-full overflow-hidden bg-paper text-ink">
@@ -60,21 +51,6 @@ export const HomeShell = () => {
         className="absolute inset-0 block h-full w-full"
         scene={scene}
         exit={atHome ? undefined : exit}
-        onShift={onShift}
-      />
-      <img
-        ref={faceRef}
-        src={zheka}
-        alt="жека"
-        width={3508}
-        height={3190}
-        className="animate-face absolute top-1/2 left-1/2 h-auto -translate-x-1/2 -translate-y-1/2 select-none"
-        style={{
-          width: 'var(--face)',
-          aspectRatio: '3508 / 3190',
-          pointerEvents: atHome ? undefined : 'none',
-        }}
-        draggable={false}
       />
       <Outlet />
       {NAV_LINKS.map((link) => (
