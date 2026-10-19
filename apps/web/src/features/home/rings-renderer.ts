@@ -306,6 +306,8 @@ export type RingsRenderer = {
   hitFace: (x: number, y: number) => boolean;
   /** Makes the face pull a random gesture, unless one is already under way. */
   poke: () => void;
+  /** Where the pointer is (CSS px) for the face to look at; null to look ahead. */
+  setPointer: (point: { x: number; y: number } | null) => void;
   /** 0 = full detail, 1 and 2 trade points and pixels for frame rate. */
   setQuality: (level: 0 | 1 | 2) => void;
 };
@@ -378,6 +380,9 @@ export const createRingsRenderer = (
   let gesture: Gesture | null = null;
   let gestureStart = -1;
   let lastTime = 0;
+  // The gaze eases toward the pointer; both are −1..1 of the half-viewport.
+  const gazeTarget = { x: 0, y: 0 };
+  const gaze = { x: 0, y: 0 };
   const startGesture = (time: number) => {
     const choices = GESTURES.filter((g) => g !== gesture);
     gesture = choices[Math.floor(Math.random() * choices.length)];
@@ -826,17 +831,26 @@ export const createRingsRenderer = (
       const base = (FACE_WIDTH * k) / FACE_FRAME.width;
       const pulse = 0.5 - 0.5 * Math.cos((time / FACE_PULSE_SECONDS) * TAU);
       const scale = base * (1 + 0.07 * pulse);
+      // The whole face leans a little toward where it looks. The gaze is in
+      // screen axes; in portrait the logical frame is turned a quarter.
+      const leanX = portrait ? gaze.y : gaze.x;
+      const leanY = portrait ? -gaze.x : gaze.y;
       const angle =
-        ((-2 + 4 * pulse) * Math.PI) / 180 + (portrait ? -Math.PI / 2 : 0);
+        ((-2 + 4 * pulse + 3 * gaze.x) * Math.PI) / 180 +
+        (portrait ? -Math.PI / 2 : 0);
       target.save();
       target.globalAlpha = fade;
-      target.translate(cx + shiftX, cy + shiftY);
+      target.translate(
+        cx + shiftX + leanX * 14 * k,
+        cy + shiftY + leanY * 10 * k,
+      );
       target.rotate(angle);
       target.scale(scale, scale);
       target.translate(-FACE_FRAME.width / 2, -FACE_FRAME.height / 2);
       const step = Math.max(3, segmentPx / scale / 4);
       const pose = {
         blink: blinkAt(time),
+        gaze,
         gesture:
           gesture && time - gestureStart < GESTURE_SECONDS
             ? { kind: gesture, t: (time - gestureStart) / GESTURE_SECONDS }
@@ -917,7 +931,12 @@ export const createRingsRenderer = (
   };
 
   const draw = (time: number) => {
+    const dt = Math.min(0.1, Math.max(0, time - lastTime));
     lastTime = time;
+    // Ease the gaze toward its target (a 0.12 s time constant).
+    const ease = 1 - Math.exp(-dt / 0.12);
+    gaze.x += (gazeTarget.x - gaze.x) * ease;
+    gaze.y += (gazeTarget.y - gaze.y) * ease;
     if (pendingScene !== scene) {
       morphFrom = scene;
       scene = pendingScene;
@@ -1014,6 +1033,16 @@ export const createRingsRenderer = (
     const dy = Math.abs(y - viewH / 2);
     return dx <= w / 2 && dy <= h / 2;
   };
+  const setPointer = (point: { x: number; y: number } | null) => {
+    if (!point || viewW === 0 || viewH === 0) {
+      gazeTarget.x = 0;
+      gazeTarget.y = 0;
+      return;
+    }
+    const clamp = (v: number) => Math.max(-1, Math.min(1, v));
+    gazeTarget.x = clamp((point.x - viewW / 2) / (viewW / 2));
+    gazeTarget.y = clamp((point.y - viewH / 2) / (viewH / 2));
+  };
   const poke = () => {
     if (gesture && lastTime - gestureStart < GESTURE_SECONDS) return;
     startGesture(lastTime);
@@ -1027,5 +1056,6 @@ export const createRingsRenderer = (
     setQuality,
     hitFace,
     poke,
+    setPointer,
   };
 };

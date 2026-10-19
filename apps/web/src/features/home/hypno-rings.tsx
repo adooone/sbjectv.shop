@@ -102,8 +102,10 @@ export const HypnoRings = ({
     // Hovering onto the face (or tapping it on a phone) makes it pull a
     // gesture, once per visit: the gesture fires on entering the face, not
     // while the pointer stays on it.
+    // The face also follows the pointer with its eyes.
     let onFace = false;
     const onPointerMove = (e: PointerEvent) => {
+      renderer.setPointer({ x: e.offsetX, y: e.offsetY });
       if (e.pointerType !== 'mouse') return;
       const inside = renderer.hitFace(e.offsetX, e.offsetY);
       if (inside && !onFace) renderer.poke();
@@ -111,19 +113,28 @@ export const HypnoRings = ({
     };
     const onPointerLeave = () => {
       onFace = false;
+      renderer.setPointer(null);
     };
     const onPointerDown = (e: PointerEvent) => {
+      renderer.setPointer({ x: e.offsetX, y: e.offsetY });
       if (e.pointerType === 'mouse') return;
       if (renderer.hitFace(e.offsetX, e.offsetY)) renderer.poke();
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') renderer.setPointer(null);
     };
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerleave', onPointerLeave);
     canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerUp);
 
     return () => {
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerleave', onPointerLeave);
       canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointerup', onPointerUp);
+      canvas.removeEventListener('pointercancel', onPointerUp);
       unsubscribe?.();
       observer?.disconnect();
       if (!observer) window.removeEventListener('resize', resize);

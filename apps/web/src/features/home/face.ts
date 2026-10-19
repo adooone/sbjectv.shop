@@ -368,7 +368,12 @@ export type FacePose = {
   blink: number;
   /** The gesture under way and its progress, 0 → 1. */
   gesture?: { kind: Gesture; t: number };
+  /** Where the face looks, −1..1 on each axis (screen left/up negative). */
+  gaze?: { x: number; y: number };
 };
+
+/** How far the irises travel inside the eye at full gaze (frame units). */
+const GAZE_REACH = { x: 26, y: 16 };
 
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 const rotateAbout = (
@@ -609,8 +614,21 @@ export const faceBands = (
 ): FaceBand[] =>
   FACE_STROKES.map((stroke, index) => {
     const closed = stroke.closed === true;
-    // The gesture first, then a blink squashes the eye toward its centre line.
-    const gestured = gesturePoints(stroke, pose);
+    // The gaze, then the gesture, then a blink squashes the eye toward its
+    // centre line.
+    const gaze = pose.gaze;
+    const looking =
+      gaze && stroke.part === 'iris' && (gaze.x !== 0 || gaze.y !== 0)
+        ? {
+            ...stroke,
+            points: stroke.points.map((q) => ({
+              ...q,
+              x: q.x + gaze.x * GAZE_REACH.x,
+              y: q.y + gaze.y * GAZE_REACH.y,
+            })),
+          }
+        : stroke;
+    const gestured = gesturePoints(looking, pose);
     const squash =
       stroke.group === 'leftEye' || stroke.group === 'rightEye'
         ? { cy: EYE_CENTRES[stroke.group].y, k: 1 - 0.92 * pose.blink }
