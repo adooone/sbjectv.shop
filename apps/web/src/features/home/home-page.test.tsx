@@ -32,8 +32,8 @@ describe('HomePage', () => {
     }
   });
 
-  it('shows the face in the centre', async () => {
+  it('draws the frame on a canvas', async () => {
     await renderHome();
-    expect(screen.getByRole('img', { name: 'жека' })).toBeInTheDocument();
+    expect(document.querySelector('canvas')).not.toBeNull();
   });
 });

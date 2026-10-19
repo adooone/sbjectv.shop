@@ -1,4 +1,5 @@
 import { createNoise2D } from 'simplex-noise';
+import { blinkAt, FACE_FRAME, faceBands } from './face';
 import {
   SECTION_SHAPES,
   type SceneId,
@@ -24,6 +25,9 @@ export type { SceneId } from './scenes';
 export type Ring = { x: number; y: number; w: number; h: number; r: number };
 
 export const DESIGN = { width: 1440, height: 1024, stroke: 30 } as const;
+/** Width of the face in design px, and its pulse (scale and tilt) period. */
+const FACE_WIDTH = 139;
+const FACE_PULSE_SECONDS = 6;
 
 export const RINGS: readonly Ring[] = [
   { x: 146, y: 103, w: 1146, h: 815, r: 90 },
@@ -294,7 +298,6 @@ export type RingsRenderer = {
   /** Switches the scene; the window edge morphs and the inside fades. */
   setScene: (scene: SceneId, exit?: { x: number; y: number }) => void;
   /** Screen-space offset of the inside after the last draw, in CSS px. */
-  interiorShift: () => { x: number; y: number };
   /** Updates options in place, keeping the running animation. */
   setOptions: (options: Partial<RingsOptions>) => void;
   /** 0 = full detail, 1 and 2 trade points and pixels for frame rate. */
@@ -335,6 +338,8 @@ export const createRingsRenderer = (
   let lastDpr = 1;
   /** Adaptive quality: fewer points along the outlines and fewer pixels. */
   let qualitySegment = 1;
+  /** Sampling step along the outlines, logical px (set by layout). */
+  let segmentPx = 4;
   let qualityPixels = 1;
   /** Reused per-ring scratch buffers, so a frame allocates nothing. */
   type RingBuffers = {
@@ -362,7 +367,6 @@ export const createRingsRenderer = (
   let pendingScene: SceneId = 'home';
   /** Screen direction the inside flies off in when a section opens (unit-ish). */
   let exitDir = { x: 1, y: 1 };
-  let lastShift = { x: 0, y: 0 };
   let morphStart = -1;
   let morphFrom: SceneId = 'home';
   let morphTo: SceneId = 'home';
@@ -404,6 +408,7 @@ export const createRingsRenderer = (
     half = (DESIGN.stroke * k) / 2;
     u = k;
     const segment = Math.max(2, opts.segment * u * qualitySegment);
+    segmentPx = segment;
 
     const scaled = RINGS.map((ring) => ({
       x: ring.x * sx,
@@ -668,10 +673,6 @@ export const createRingsRenderer = (
     const dir = portrait ? { x: exitDir.y, y: -exitDir.x } : exitDir;
     const shiftX = dir.x * width * 1.2 * flight;
     const shiftY = dir.y * height * 1.2 * flight;
-    lastShift = {
-      x: exitDir.x * viewW * 1.2 * flight,
-      y: exitDir.y * viewH * 1.2 * flight,
-    };
     const win = windowPath(time);
     const lastIndex = outlines.length - 1;
     const rings = outlines.map((points, i) => {
@@ -803,6 +804,40 @@ export const createRingsRenderer = (
       target.fill();
     });
 
+    // Жека in the middle: ink strokes that breathe, blink and pulse, and
+    // fly off and fade with the inner rings. On a phone the frame is turned
+    // a quarter, so the face turns back to stand upright on the screen.
+    if (fade > 0) {
+      const base = (FACE_WIDTH * k) / FACE_FRAME.width;
+      const pulse = 0.5 - 0.5 * Math.cos((time / FACE_PULSE_SECONDS) * TAU);
+      const scale = base * (1 + 0.07 * pulse);
+      const angle =
+        ((-2 + 4 * pulse) * Math.PI) / 180 + (portrait ? -Math.PI / 2 : 0);
+      target.save();
+      target.globalAlpha = fade;
+      target.translate(cx + shiftX, cy + shiftY);
+      target.rotate(angle);
+      target.scale(scale, scale);
+      target.translate(-FACE_FRAME.width / 2, -FACE_FRAME.height / 2);
+      const step = Math.max(3, segmentPx / scale / 4);
+      const pose = { blink: blinkAt(time) };
+      for (const band of faceBands(time, noise, pose, step)) {
+        const poly = band.polygon;
+        target.beginPath();
+        target.moveTo(poly[0], poly[1]);
+        for (let j = 2; j < poly.length; j += 2) {
+          target.lineTo(poly[j], poly[j + 1]);
+        }
+        target.closePath();
+        target.fill();
+        for (const cap of band.caps) {
+          target.beginPath();
+          target.arc(cap.x, cap.y, cap.r, 0, TAU);
+          target.fill();
+        }
+      }
+      target.restore();
+    }
     target.globalAlpha = 1;
 
     // Scene extras (sprocket holes) cross-fade with the morph.
@@ -947,6 +982,5 @@ export const createRingsRenderer = (
     setScene,
     setOptions,
     setQuality,
-    interiorShift: () => lastShift,
   };
 };
