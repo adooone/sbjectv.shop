@@ -12,7 +12,13 @@ export const FACE_FRAME = { width: 1000, height: 909 } as const;
 
 export type FaceGroup = 'leftEye' | 'rightEye' | 'nose' | 'mouth';
 
-export type FacePoint = { x: number; y: number; sharp?: boolean };
+export type FacePoint = {
+  x: number;
+  y: number;
+  /** Stroke width at this point; the stroke's own width when omitted. */
+  w?: number;
+  sharp?: boolean;
+};
 
 export type FaceStroke = {
   group: FaceGroup;
@@ -22,174 +28,303 @@ export type FaceStroke = {
   points: FacePoint[];
 };
 
-const p = (x: number, y: number, sharp = false): FacePoint =>
-  sharp ? { x, y, sharp } : { x, y };
+const p = (x: number, y: number, w?: number, sharp = false): FacePoint => ({
+  x,
+  y,
+  ...(w === undefined ? {} : { w }),
+  ...(sharp ? { sharp } : {}),
+});
 
 export const FACE_STROKES: readonly FaceStroke[] = [
   // Left eye: the almond, clockwise from the inner (left) tip.
   {
     group: 'leftEye',
-    width: 36,
+    width: 43,
     closed: true,
     points: [
-      p(50, 205, true),
-      p(70, 170),
-      p(105, 140),
-      p(150, 118),
-      p(200, 105),
-      p(250, 100),
-      p(300, 104),
-      p(350, 118),
-      p(395, 140),
-      p(425, 168),
-      p(437, 200, true),
-      p(428, 225),
-      p(400, 240),
-      p(350, 262),
-      p(300, 275),
-      p(250, 282),
-      p(200, 280),
-      p(150, 272),
-      p(105, 255),
-      p(70, 235),
+      p(56, 203, 42, true),
+      p(57, 184, 36),
+      p(68, 169, 36),
+      p(81, 156, 36),
+      p(96, 144, 37),
+      p(111, 133, 37),
+      p(127, 123, 38),
+      p(144, 115, 40),
+      p(162, 109, 41),
+      p(180, 104, 44),
+      p(199, 103, 48),
+      p(217, 97, 52),
+      p(235, 94, 52),
+      p(254, 96, 52),
+      p(273, 98, 54),
+      p(292, 98, 58),
+      p(307, 109, 58),
+      p(324, 116, 58),
+      p(342, 120, 54),
+      p(359, 128, 54),
+      p(375, 137, 53),
+      p(391, 147, 53),
+      p(407, 157, 53),
+      p(413, 174, 40),
+      p(413, 192, 40),
+      p(408, 208, 40),
+      p(394, 215, 40),
+      p(380, 221, 41, true),
+      p(363, 228, 42),
+      p(345, 234, 43),
+      p(327, 239, 43),
+      p(308, 240, 47),
+      p(292, 249, 47),
+      p(275, 255, 47),
+      p(256, 255, 47),
+      p(238, 257, 50),
+      p(220, 260, 51),
+      p(202, 260, 52),
+      p(184, 253, 52),
+      p(166, 256, 52),
+      p(147, 253, 52),
+      p(129, 250, 52),
+      p(112, 245, 52),
+      p(95, 238, 53),
+      p(79, 230, 53),
+      p(66, 223, 53),
+      p(59, 213, 46),
     ],
   },
   // Its iris: two arcs making a lens, each trailing a little below the lid.
   {
     group: 'leftEye',
-    width: 30,
+    width: 36,
     points: [
-      p(205, 118),
-      p(182, 160),
-      p(172, 205),
-      p(178, 250),
-      p(190, 282),
-      p(195, 315),
+      p(208, 116, 36),
+      p(188, 148, 36),
+      p(182, 185, 36),
+      p(185, 215, 36),
+      p(188, 245, 36),
+      p(208, 270, 36),
+      p(206, 297, 34),
+      p(190, 301, 32),
     ],
   },
   {
     group: 'leftEye',
-    width: 30,
+    width: 36,
     points: [
-      p(275, 118),
-      p(300, 160),
-      p(310, 205),
-      p(303, 250),
-      p(288, 282),
-      p(270, 318),
+      p(276, 116, 36),
+      p(311, 144, 36),
+      p(310, 185, 36),
+      p(305, 215, 36),
+      p(301, 244, 36),
+      p(283, 266, 36),
+      p(277, 292, 34),
+      p(268, 301, 32),
     ],
   },
   // Two lashes over the left eye.
   {
     group: 'leftEye',
     width: 22,
-    points: [p(226, 100), p(238, 72), p(254, 54), p(266, 66), p(268, 86)],
+    points: [
+      p(228, 98, 22),
+      p(240, 72, 22),
+      p(252, 60, 22),
+      p(262, 68, 22),
+      p(266, 84, 22),
+    ],
   },
   {
     group: 'leftEye',
     width: 22,
-    points: [p(278, 96), p(284, 70), p(296, 54), p(308, 68), p(310, 88)],
+    points: [
+      p(280, 96, 22),
+      p(288, 70, 22),
+      p(296, 60, 22),
+      p(306, 70, 22),
+      p(310, 88, 22),
+    ],
   },
-
   // Right eye: a flatter almond, clockwise from the inner (left) tip.
   {
     group: 'rightEye',
-    width: 36,
+    width: 48,
     closed: true,
     points: [
-      p(542, 228, true),
-      p(565, 198),
-      p(605, 165),
-      p(652, 132, true),
-      p(700, 122),
-      p(750, 119),
-      p(802, 124, true),
-      p(852, 158),
-      p(902, 205),
-      p(945, 245, true),
-      p(925, 275),
-      p(880, 300),
-      p(820, 318),
-      p(760, 322),
-      p(700, 317),
-      p(650, 300),
-      p(600, 272),
-      p(565, 248),
+      p(554, 217, 38, true),
+      p(557, 198, 38),
+      p(567, 182, 38),
+      p(582, 171, 39),
+      p(599, 162, 40),
+      p(616, 154, 40),
+      p(633, 146, 40),
+      p(650, 138, 42),
+      p(669, 135, 48),
+      p(687, 135, 49),
+      p(706, 137, 49),
+      p(725, 136, 50),
+      p(743, 136, 53),
+      p(762, 139, 54),
+      p(779, 146, 65),
+      p(796, 154, 65),
+      p(815, 157, 65),
+      p(833, 162, 55),
+      p(849, 171, 53),
+      p(865, 181, 53),
+      p(881, 191, 53),
+      p(896, 201, 54),
+      p(910, 210, 54),
+      p(921, 221, 54),
+      p(921, 236, 46, true),
+      p(911, 251, 42),
+      p(894, 259, 42),
+      p(877, 266, 42),
+      p(860, 273, 42),
+      p(842, 278, 42),
+      p(824, 280, 48),
+      p(807, 289, 48),
+      p(790, 295, 48),
+      p(771, 295, 48),
+      p(752, 297, 48),
+      p(733, 298, 48),
+      p(715, 298, 49),
+      p(696, 296, 50),
+      p(677, 293, 51),
+      p(660, 284, 53),
+      p(642, 279, 53),
+      p(626, 270, 54),
+      p(610, 259, 54),
+      p(594, 250, 54),
+      p(579, 242, 54),
+      p(566, 235, 54),
+      p(558, 226, 48),
     ],
   },
   // Its iris: a bowl, the right side dripping below the lid.
   {
     group: 'rightEye',
-    width: 30,
-    points: [p(668, 140), p(655, 185), p(650, 230), p(655, 275), p(665, 305)],
+    width: 34,
+    points: [
+      p(690, 138, 34),
+      p(692, 171, 34),
+      p(676, 203, 34),
+      p(667, 236, 34),
+      p(662, 265, 34),
+      p(664, 292, 34),
+    ],
   },
   {
     group: 'rightEye',
-    width: 30,
+    width: 44,
     points: [
-      p(712, 140),
-      p(752, 160),
-      p(782, 195),
-      p(797, 235),
-      p(800, 275),
-      p(795, 310),
-      p(778, 345),
-      p(765, 358),
+      p(712, 136, 44),
+      p(757, 137, 46),
+      p(799, 161, 46),
+      p(807, 204, 46),
+      p(816, 239, 44),
+      p(819, 273, 44),
+      p(796, 296, 44),
+      p(795, 322, 42),
+      p(785, 344, 40),
     ],
   },
-
   // Nose: a tall L with a drip off its foot.
   {
     group: 'nose',
-    width: 44,
+    width: 37,
     points: [
-      p(470, 292),
-      p(466, 340),
-      p(461, 400),
-      p(455, 455),
-      p(446, 500),
-      p(440, 523, true),
-      p(480, 523),
-      p(540, 523),
-      p(598, 523, true),
-      p(592, 540),
-      p(572, 565),
-      p(552, 588),
+      p(484, 291, 38),
+      p(480, 309, 38),
+      p(481, 328, 38),
+      p(482, 347, 38),
+      p(482, 366, 38),
+      p(480, 384, 38),
+      p(480, 403, 36),
+      p(478, 421, 36),
+      p(476, 440, 35),
+      p(472, 458, 34),
+      p(468, 476, 34),
+      p(464, 494, 34),
+      p(465, 513, 37),
+      p(453, 523, 49, true),
+      p(469, 518, 49),
+      p(489, 519, 49),
+      p(508, 519, 49),
+      p(526, 519, 49),
+      p(544, 519, 49),
+      p(560, 521, 49),
+      p(573, 521, 50),
+      p(584, 522, 50, true),
+      p(568, 523, 40),
+      p(563, 538, 40),
+      p(560, 551, 34),
+      p(555, 563, 34),
     ],
   },
-
   // Mouth: three waves, a drop, then a zigzag up to the right.
   {
     group: 'mouth',
-    width: 46,
+    width: 37,
     points: [
-      p(185, 800),
-      p(198, 768),
-      p(225, 742),
-      p(258, 735),
-      p(292, 752),
-      p(322, 785),
-      p(350, 808, true),
-      p(378, 790),
-      p(410, 752),
-      p(448, 727),
-      p(482, 738),
-      p(505, 790),
-      p(518, 810, true),
-      p(548, 790),
-      p(585, 752),
-      p(628, 730),
-      p(658, 745),
-      p(668, 800),
-      p(670, 840, true),
-      p(700, 822),
-      p(745, 788),
-      p(798, 756),
-      p(825, 790),
-      p(852, 815, true),
-      p(885, 790),
-      p(918, 752),
-      p(950, 720),
+      p(191, 795, 32),
+      p(200, 778, 32),
+      p(210, 763, 32),
+      p(223, 750, 36),
+      p(239, 741, 41),
+      p(258, 737, 48),
+      p(276, 738, 50),
+      p(294, 744, 50),
+      p(310, 753, 50),
+      p(324, 763, 50),
+      p(337, 774, 50),
+      p(348, 785, 50),
+      p(349, 798, 42, true),
+      p(359, 782, 37),
+      p(375, 772, 35),
+      p(387, 758, 35),
+      p(400, 745, 35),
+      p(415, 734, 38),
+      p(432, 725, 41),
+      p(450, 720, 47),
+      p(468, 720, 50),
+      p(485, 727, 50),
+      p(499, 739, 50),
+      p(511, 753, 50),
+      p(520, 768, 50),
+      p(529, 781, 48),
+      p(526, 795, 44, true),
+      p(538, 781, 38),
+      p(555, 773, 38),
+      p(570, 763, 39),
+      p(586, 753, 39),
+      p(603, 745, 41),
+      p(620, 739, 44),
+      p(639, 736, 49),
+      p(656, 741, 49),
+      p(669, 753, 49),
+      p(676, 770, 44),
+      p(680, 788, 44),
+      p(682, 806, 42),
+      p(685, 822, 42),
+      p(674, 835, 42, true),
+      p(687, 819, 38),
+      p(705, 814, 36),
+      p(721, 803, 36),
+      p(736, 792, 36),
+      p(751, 781, 36),
+      p(766, 770, 37),
+      p(783, 763, 46),
+      p(801, 766, 50),
+      p(815, 778, 50),
+      p(829, 790, 50),
+      p(842, 801, 50),
+      p(852, 815, 38, true),
+      p(862, 800, 34),
+      p(876, 788, 34),
+      p(889, 775, 34),
+      p(902, 762, 34),
+      p(915, 749, 34),
+      p(928, 736, 34),
+      p(940, 724, 34),
+      p(951, 711, 34),
     ],
   },
 ];
@@ -226,7 +361,7 @@ const FLOW = 0.35;
  * span. A sharp point gets a zero tangent, so the curve passes through it
  * with a corner instead of rounding it off.
  */
-const smooth = (points: FacePoint[], closed: boolean, steps: number) => {
+export const smooth = (points: FacePoint[], closed: boolean, steps: number) => {
   const n = points.length;
   const spans = closed ? n : n - 1;
   const tangent = (i: number) => {
@@ -251,9 +386,14 @@ const smooth = (points: FacePoint[], closed: boolean, steps: number) => {
       const h10 = t3 - 2 * t2 + t;
       const h01 = -2 * t3 + 3 * t2;
       const h11 = t3 - t2;
+      const wa = a.w;
+      const wb = b.w;
       out.push({
         x: h00 * a.x + h10 * ma.x + h01 * b.x + h11 * mb.x,
         y: h00 * a.y + h10 * ma.y + h01 * b.y + h11 * mb.y,
+        ...(wa !== undefined && wb !== undefined
+          ? { w: wa + (wb - wa) * t }
+          : {}),
       });
     }
   }
@@ -269,7 +409,14 @@ const dedupe = (points: FacePoint[]) =>
       Math.abs(q.y - points[i - 1].y) > 1e-6,
   );
 
-type Sample = { x: number; y: number; nx: number; ny: number; s: number };
+type Sample = {
+  x: number;
+  y: number;
+  nx: number;
+  ny: number;
+  s: number;
+  w?: number;
+};
 
 /** Walks the smoothed polyline at a fixed step, with unit normals. */
 const sample = (
@@ -293,12 +440,17 @@ const sample = (
     const ny = -dx / len;
     let t = carried;
     while (t < len) {
+      const wa = a.w;
+      const wb = b.w;
       samples.push({
         x: a.x + (dx * t) / len,
         y: a.y + (dy * t) / len,
         nx,
         ny,
         s: s + t,
+        ...(wa !== undefined && wb !== undefined
+          ? { w: wa + ((wb - wa) * t) / len }
+          : {}),
       });
       t += step;
     }
@@ -308,7 +460,7 @@ const sample = (
   if (!closed) {
     const end = points[n - 1];
     const prev = samples[samples.length - 1];
-    samples.push({ x: end.x, y: end.y, nx: prev.nx, ny: prev.ny, s });
+    samples.push({ x: end.x, y: end.y, nx: prev.nx, ny: prev.ny, s, w: end.w });
   }
   // Average neighbouring normals so the band bends smoothly at corners.
   const m = samples.length;
@@ -350,7 +502,7 @@ export const faceBands = (
       : stroke.points;
     const { samples, length } = sample(smooth(posed, closed, 12), closed, step);
     const n = samples.length;
-    const half = stroke.width / 2;
+    const base = stroke.width / 2;
     const r1 = length / (WOBBLE_WAVELENGTH * TAU);
     const r3 = length / (THICKNESS_WAVELENGTH * TAU);
     const direction = index % 2 === 0 ? 1 : -1;
@@ -358,10 +510,11 @@ export const faceBands = (
     const ox = index * 11.3;
     const oy = index * 5.1;
     const polygon = new Float64Array(n * 4);
-    let first = { x: 0, y: 0, r: half };
-    let last = { x: 0, y: 0, r: half };
+    let first = { x: 0, y: 0, r: base };
+    let last = { x: 0, y: 0, r: base };
     for (let j = 0; j < n; j++) {
       const q = samples[j];
+      const half = q.w === undefined ? base : q.w / 2;
       const theta = (q.s / length) * TAU - spin;
       const cos = Math.cos(theta);
       const sin = Math.sin(theta);
@@ -384,7 +537,8 @@ export const faceBands = (
     }
     // Round caps close the ends and fill the nick a sharp corner leaves.
     const caps = closed ? [] : [first, last];
-    for (const q of posed) if (q.sharp) caps.push({ x: q.x, y: q.y, r: half });
+    for (const q of posed)
+      if (q.sharp) caps.push({ x: q.x, y: q.y, r: (q.w ?? stroke.width) / 2 });
     return { polygon, caps };
   });
 
