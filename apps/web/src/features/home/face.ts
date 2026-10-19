@@ -20,8 +20,12 @@ export type FacePoint = {
   sharp?: boolean;
 };
 
+export type FacePart = 'lid' | 'iris' | 'lash' | 'nose' | 'mouth';
+
 export type FaceStroke = {
   group: FaceGroup;
+  /** What the stroke draws, for the gestures. */
+  part: FacePart;
   /** Full stroke width in frame units. */
   width: number;
   closed?: boolean;
@@ -39,6 +43,7 @@ export const FACE_STROKES: readonly FaceStroke[] = [
   // Left eye: the almond, clockwise from the inner (left) tip.
   {
     group: 'leftEye',
+    part: 'lid',
     width: 43,
     closed: true,
     points: [
@@ -94,6 +99,7 @@ export const FACE_STROKES: readonly FaceStroke[] = [
   // Its iris: two arcs making a lens, each trailing a little below the lid.
   {
     group: 'leftEye',
+    part: 'iris',
     width: 36,
     points: [
       p(208, 116, 36),
@@ -108,6 +114,7 @@ export const FACE_STROKES: readonly FaceStroke[] = [
   },
   {
     group: 'leftEye',
+    part: 'iris',
     width: 36,
     points: [
       p(276, 116, 36),
@@ -123,6 +130,7 @@ export const FACE_STROKES: readonly FaceStroke[] = [
   // Two lashes over the left eye.
   {
     group: 'leftEye',
+    part: 'lash',
     width: 22,
     points: [
       p(228, 98, 22),
@@ -134,6 +142,7 @@ export const FACE_STROKES: readonly FaceStroke[] = [
   },
   {
     group: 'leftEye',
+    part: 'lash',
     width: 22,
     points: [
       p(280, 96, 22),
@@ -146,6 +155,7 @@ export const FACE_STROKES: readonly FaceStroke[] = [
   // Right eye: a flatter almond, clockwise from the inner (left) tip.
   {
     group: 'rightEye',
+    part: 'lid',
     width: 48,
     closed: true,
     points: [
@@ -201,6 +211,7 @@ export const FACE_STROKES: readonly FaceStroke[] = [
   // Its iris: a bowl, the right side dripping below the lid.
   {
     group: 'rightEye',
+    part: 'iris',
     width: 34,
     points: [
       p(690, 138, 34),
@@ -213,6 +224,7 @@ export const FACE_STROKES: readonly FaceStroke[] = [
   },
   {
     group: 'rightEye',
+    part: 'iris',
     width: 44,
     points: [
       p(712, 136, 44),
@@ -229,6 +241,7 @@ export const FACE_STROKES: readonly FaceStroke[] = [
   // Nose: a tall L with a drip off its foot.
   {
     group: 'nose',
+    part: 'nose',
     width: 37,
     points: [
       p(484, 291, 38),
@@ -262,6 +275,7 @@ export const FACE_STROKES: readonly FaceStroke[] = [
   // Mouth: three waves, a drop, then a zigzag up to the right.
   {
     group: 'mouth',
+    part: 'mouth',
     width: 37,
     points: [
       p(191, 795, 32),
@@ -329,15 +343,121 @@ export const FACE_STROKES: readonly FaceStroke[] = [
   },
 ];
 
-/** Where each eye closes to when it blinks (frame units). */
-export const EYE_CENTRES: Record<'leftEye' | 'rightEye', { y: number }> = {
-  leftEye: { y: 195 },
-  rightEye: { y: 222 },
+/** Centre of each eye (frame units): blinks close toward its y, gestures spin about it. */
+export const EYE_CENTRES: Record<
+  'leftEye' | 'rightEye',
+  { x: number; y: number }
+> = {
+  leftEye: { x: 243, y: 195 },
+  rightEye: { x: 743, y: 222 },
 };
+const MOUTH_CENTRE = { x: 568, y: 778 };
+const NOSE_TOP = { x: 470, y: 292 };
+
+/**
+ * Gestures the face pulls while the rings collapse on the way to a section.
+ * pucker: the mouth draws into a little "o". buzz: a wave runs through the
+ * mouth. sniff: the nose sways and stretches. trip: the irises spin, the
+ * eyes swell in turn and the lashes flap.
+ */
+export type Gesture = 'pucker' | 'buzz' | 'sniff' | 'trip';
+export const GESTURES: readonly Gesture[] = ['pucker', 'buzz', 'sniff', 'trip'];
 
 export type FacePose = {
   /** 0 = eyes open, 1 = shut. */
   blink: number;
+  /** The gesture under way and its progress, 0 → 1. */
+  gesture?: { kind: Gesture; t: number };
+};
+
+const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
+const rotateAbout = (
+  q: FacePoint,
+  c: { x: number; y: number },
+  angle: number,
+  scale = 1,
+): FacePoint => {
+  const cos = Math.cos(angle) * scale;
+  const sin = Math.sin(angle) * scale;
+  const dx = q.x - c.x;
+  const dy = q.y - c.y;
+  return { ...q, x: c.x + dx * cos - dy * sin, y: c.y + dx * sin + dy * cos };
+};
+const easeOutBack = (x: number, c1 = 1.4) => {
+  const u = x - 1;
+  return 1 + (c1 + 1) * u * u * u + c1 * u * u;
+};
+
+/** The stroke's points under the pose's gesture (blink is applied after). */
+const gesturePoints = (stroke: FaceStroke, pose: FacePose): FacePoint[] => {
+  const g = pose.gesture;
+  if (!g || g.t <= 0) return stroke.points;
+  const t = Math.min(1, g.t);
+  const pts = stroke.points;
+  const n = pts.length;
+  // Everything settles in quickly, so it reads before the face flies off.
+  const rise = smoothstep(Math.min(1, t / 0.18));
+  switch (g.kind) {
+    case 'pucker': {
+      if (stroke.part !== 'mouth') return pts;
+      const k = easeOutBack(Math.min(1, t / 0.5));
+      return pts.map((q, i) => {
+        // Points wind onto a small loop, nearly closed, starting at the top.
+        const a = -Math.PI / 2 + (i / (n - 1)) * Math.PI * 2 * 0.94;
+        const tx = MOUTH_CENTRE.x + Math.cos(a) * 92;
+        const ty = MOUTH_CENTRE.y - 12 + Math.sin(a) * 78;
+        return { ...q, x: lerp(q.x, tx, k), y: lerp(q.y, ty, k) };
+      });
+    }
+    case 'buzz': {
+      if (stroke.part !== 'mouth') return pts;
+      return pts.map((q, i) => {
+        const u = i / (n - 1);
+        const wave = Math.sin(Math.PI * 2 * (u * 2.5 - t * 4));
+        return {
+          ...q,
+          x: q.x + 10 * rise * Math.sin(Math.PI * 2 * (u * 2.5 - t * 4) + 1.2),
+          y: q.y + 38 * rise * wave,
+        };
+      });
+    }
+    case 'sniff': {
+      if (stroke.part !== 'nose') return pts;
+      const sway = Math.sin(Math.PI * 2 * t * 2.5) * rise;
+      const stretch = 1 + 0.3 * Math.sin(Math.PI * Math.min(1, t));
+      return pts.map((q) => {
+        const d = Math.max(0, (q.y - NOSE_TOP.y) / 300);
+        return {
+          ...q,
+          x: q.x + 80 * d * sway,
+          y: NOSE_TOP.y + (q.y - NOSE_TOP.y) * stretch,
+        };
+      });
+    }
+    case 'trip': {
+      if (stroke.group !== 'leftEye' && stroke.group !== 'rightEye') return pts;
+      const c = EYE_CENTRES[stroke.group];
+      const side = stroke.group === 'leftEye' ? 1 : -1;
+      if (stroke.part === 'iris') {
+        // One full spin, with a swell on the way.
+        const spin = Math.PI * 2 * smoothstep(t) * side;
+        const swell = 1 + 0.12 * Math.sin(Math.PI * t);
+        return pts.map((q) => rotateAbout(q, c, spin, swell));
+      }
+      if (stroke.part === 'lid') {
+        // The eyes swell in turn and tilt a little against each other.
+        const swell = 1 + 0.16 * Math.sin(Math.PI * 2 * t * 1.5) * side * rise;
+        const tilt = 0.08 * Math.sin(Math.PI * 2 * t * 1.5) * side * rise;
+        return pts.map((q) => rotateAbout(q, c, tilt, swell));
+      }
+      // Lashes flap about their root.
+      const root = pts[0];
+      const flap = 0.7 * Math.sin(Math.PI * 2 * t * 6) * rise;
+      return pts.map((q) => rotateAbout(q, root, flap));
+    }
+    default:
+      return pts;
+  }
 };
 
 type Noise2D = (x: number, y: number) => number;
@@ -489,17 +609,18 @@ export const faceBands = (
 ): FaceBand[] =>
   FACE_STROKES.map((stroke, index) => {
     const closed = stroke.closed === true;
-    // A blink squashes the eye toward its centre line.
+    // The gesture first, then a blink squashes the eye toward its centre line.
+    const gestured = gesturePoints(stroke, pose);
     const squash =
       stroke.group === 'leftEye' || stroke.group === 'rightEye'
         ? { cy: EYE_CENTRES[stroke.group].y, k: 1 - 0.92 * pose.blink }
         : null;
     const posed = squash
-      ? stroke.points.map((q) => ({
+      ? gestured.map((q) => ({
           ...q,
           y: squash.cy + (q.y - squash.cy) * squash.k,
         }))
-      : stroke.points;
+      : gestured;
     const { samples, length } = sample(smooth(posed, closed, 12), closed, step);
     const n = samples.length;
     const base = stroke.width / 2;

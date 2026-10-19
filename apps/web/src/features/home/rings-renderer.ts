@@ -1,5 +1,5 @@
 import { createNoise2D } from 'simplex-noise';
-import { blinkAt, FACE_FRAME, faceBands } from './face';
+import { blinkAt, FACE_FRAME, faceBands, type Gesture, GESTURES } from './face';
 import {
   SECTION_SHAPES,
   type SceneId,
@@ -28,6 +28,8 @@ export const DESIGN = { width: 1440, height: 1024, stroke: 30 } as const;
 /** Width of the face in design px, and its pulse (scale and tilt) period. */
 const FACE_WIDTH = 139;
 const FACE_PULSE_SECONDS = 6;
+/** How long a gesture runs; it starts with the rings' collapse. */
+const GESTURE_SECONDS = 1.1;
 
 export const RINGS: readonly Ring[] = [
   { x: 146, y: 103, w: 1146, h: 815, r: 90 },
@@ -368,6 +370,9 @@ export const createRingsRenderer = (
   /** Screen direction the inside flies off in when a section opens (unit-ish). */
   let exitDir = { x: 1, y: 1 };
   let morphStart = -1;
+  // The face's gesture on the way out: picked at random, never twice in a row.
+  let gesture: Gesture | null = null;
+  let gestureStart = -1;
   let morphFrom: SceneId = 'home';
   let morphTo: SceneId = 'home';
 
@@ -820,7 +825,13 @@ export const createRingsRenderer = (
       target.scale(scale, scale);
       target.translate(-FACE_FRAME.width / 2, -FACE_FRAME.height / 2);
       const step = Math.max(3, segmentPx / scale / 4);
-      const pose = { blink: blinkAt(time) };
+      const pose = {
+        blink: blinkAt(time),
+        gesture:
+          gesture && time - gestureStart < GESTURE_SECONDS
+            ? { kind: gesture, t: (time - gestureStart) / GESTURE_SECONDS }
+            : undefined,
+      };
       for (const band of faceBands(time, noise, pose, step)) {
         const poly = band.polygon;
         target.beginPath();
@@ -901,6 +912,11 @@ export const createRingsRenderer = (
       scene = pendingScene;
       morphTo = scene;
       morphStart = time;
+      if (morphFrom === 'home') {
+        const choices = GESTURES.filter((g) => g !== gesture);
+        gesture = choices[Math.floor(Math.random() * choices.length)];
+        gestureStart = time;
+      }
       // A glitch burst hides the seams of the morph.
       if (opts.glitch) {
         glitchUntil = time + opts.glitchDuration;
