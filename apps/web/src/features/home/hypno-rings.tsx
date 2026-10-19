@@ -99,7 +99,31 @@ export const HypnoRings = ({
     };
     const unsubscribe = reduced ? null : subscribeTick(tick);
 
+    // Hovering onto the face (or tapping it on a phone) makes it pull a
+    // gesture, once per visit: the gesture fires on entering the face, not
+    // while the pointer stays on it.
+    let onFace = false;
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return;
+      const inside = renderer.hitFace(e.offsetX, e.offsetY);
+      if (inside && !onFace) renderer.poke();
+      onFace = inside;
+    };
+    const onPointerLeave = () => {
+      onFace = false;
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') return;
+      if (renderer.hitFace(e.offsetX, e.offsetY)) renderer.poke();
+    };
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerleave', onPointerLeave);
+    canvas.addEventListener('pointerdown', onPointerDown);
+
     return () => {
+      canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerleave', onPointerLeave);
+      canvas.removeEventListener('pointerdown', onPointerDown);
       unsubscribe?.();
       observer?.disconnect();
       if (!observer) window.removeEventListener('resize', resize);

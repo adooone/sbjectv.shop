@@ -302,6 +302,10 @@ export type RingsRenderer = {
   /** Screen-space offset of the inside after the last draw, in CSS px. */
   /** Updates options in place, keeping the running animation. */
   setOptions: (options: Partial<RingsOptions>) => void;
+  /** Whether a screen point (CSS px) lies on the face while it is at home. */
+  hitFace: (x: number, y: number) => boolean;
+  /** Makes the face pull a random gesture, unless one is already under way. */
+  poke: () => void;
   /** 0 = full detail, 1 and 2 trade points and pixels for frame rate. */
   setQuality: (level: 0 | 1 | 2) => void;
 };
@@ -373,6 +377,12 @@ export const createRingsRenderer = (
   // The face's gesture on the way out: picked at random, never twice in a row.
   let gesture: Gesture | null = null;
   let gestureStart = -1;
+  let lastTime = 0;
+  const startGesture = (time: number) => {
+    const choices = GESTURES.filter((g) => g !== gesture);
+    gesture = choices[Math.floor(Math.random() * choices.length)];
+    gestureStart = time;
+  };
   let morphFrom: SceneId = 'home';
   let morphTo: SceneId = 'home';
 
@@ -907,16 +917,13 @@ export const createRingsRenderer = (
   };
 
   const draw = (time: number) => {
+    lastTime = time;
     if (pendingScene !== scene) {
       morphFrom = scene;
       scene = pendingScene;
       morphTo = scene;
       morphStart = time;
-      if (morphFrom === 'home') {
-        const choices = GESTURES.filter((g) => g !== gesture);
-        gesture = choices[Math.floor(Math.random() * choices.length)];
-        gestureStart = time;
-      }
+      if (morphFrom === 'home') startGesture(time);
       // A glitch burst hides the seams of the morph.
       if (opts.glitch) {
         glitchUntil = time + opts.glitchDuration;
@@ -992,11 +999,33 @@ export const createRingsRenderer = (
     ctx.setTransform(dprScale, 0, 0, dprScale, 0, 0);
   };
 
+  // The face sits at the screen centre when at home; on a phone it is turned
+  // upright, so its box is the frame's box turned too.
+  const hitFace = (x: number, y: number) => {
+    // Only at home, once the inside has flown back and settled.
+    const settled =
+      scene === 'home' &&
+      pendingScene === 'home' &&
+      (morphStart < 0 || lastTime - morphStart > 2.5);
+    if (!settled) return false;
+    const w = FACE_WIDTH * k * 1.15;
+    const h = (w * FACE_FRAME.height) / FACE_FRAME.width;
+    const dx = Math.abs(x - viewW / 2);
+    const dy = Math.abs(y - viewH / 2);
+    return dx <= w / 2 && dy <= h / 2;
+  };
+  const poke = () => {
+    if (gesture && lastTime - gestureStart < GESTURE_SECONDS) return;
+    startGesture(lastTime);
+  };
+
   return {
     resize,
     draw,
     setScene,
     setOptions,
     setQuality,
+    hitFace,
+    poke,
   };
 };
