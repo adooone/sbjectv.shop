@@ -602,6 +602,19 @@ const sample = (
   return { samples: out, length: s };
 };
 
+/** Length of each stroke at rest (no pose), computed once. */
+const REST_LENGTHS: number[] = [];
+const restLength = (index: number): number => {
+  let value = REST_LENGTHS[index];
+  if (value === undefined) {
+    const stroke = FACE_STROKES[index];
+    const closed = stroke.closed === true;
+    value = sample(smooth(stroke.points, closed, 12), closed, 4).length;
+    REST_LENGTHS[index] = value;
+  }
+  return value;
+};
+
 /**
  * Builds the bands for every stroke at the given time, in frame units.
  * `step` is the sampling distance in frame units; a few units is plenty.
@@ -643,9 +656,12 @@ export const faceBands = (
     const n = samples.length;
     const base = stroke.width / 2;
     const r1 = length / (WOBBLE_WAVELENGTH * TAU);
+    // Spin against the stroke's resting length, so a gesture that stretches
+    // or shrinks the stroke does not make its wobble jump (see the rings).
+    const restR1 = restLength(index) / (WOBBLE_WAVELENGTH * TAU);
     const r3 = length / (THICKNESS_WAVELENGTH * TAU);
     const direction = index % 2 === 0 ? 1 : -1;
-    const spin = (direction * time * FLOW) / r1;
+    const spin = (direction * time * FLOW) / restR1;
     const ox = index * 11.3;
     const oy = index * 5.1;
     const polygon = new Float64Array(n * 4);

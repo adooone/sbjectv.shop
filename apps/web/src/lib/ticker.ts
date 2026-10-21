@@ -9,8 +9,13 @@ type Tick = (now: number) => void;
 const subscribers = new Set<Tick>();
 let frame = 0;
 
-const loop = (now: number) => {
+// Subscribers get the wall clock, not the frame's timestamp: after a long
+// spell in the background a browser may flush a burst of frames whose
+// timestamps are spread out as if they had run on time, and a clock fed
+// those would fast-forward the animation in an instant.
+const loop = () => {
   frame = 0;
+  const now = performance.now();
   for (const tick of subscribers) tick(now);
   if (subscribers.size > 0) frame = requestAnimationFrame(loop);
 };
@@ -32,17 +37,36 @@ export const cappedDpr = (max = 2): number =>
   Math.min(max, window.devicePixelRatio || 1);
 
 /**
- * An animation clock driven by frame deltas, each clamped to MAX_STEP. A
- * throttled background tab (one frame a second) or a long sleep then pauses
- * the animation instead of fast-forwarding it, so the waves never race.
+ * An animation clock driven by real elapsed time between ticks, each step
+ * clamped to MAX_STEP. A throttled background tab (one frame a second), a
+ * long sleep or a burst of catch-up frames then pauses the animation instead
+ * of fast-forwarding it, so the waves never race. The frame timestamp passed
+ * in is ignored in favour of the wall clock (see `loop`), and the step after
+ * the page comes back from hiding is dropped altogether.
  */
 export const MAX_STEP_SECONDS = 0.05;
+
+// Bumped whenever the page is hidden or shown, so every clock skips the
+// first step after that (one shared listener, nothing to clean up per clock).
+let visibilityEpoch = 0;
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    visibilityEpoch++;
+  });
+}
+
 export const createClock = (frozen = false) => {
   let seconds = 0;
   let last = Number.NaN;
+  let epoch = visibilityEpoch;
   return {
-    /** Advances by this frame's delta (clamped) and returns the time in seconds. */
-    tick(now: number): number {
+    /** Advances by the real time since the last tick (clamped), in seconds. */
+    tick(_now: number): number {
+      const now = performance.now();
+      if (epoch !== visibilityEpoch) {
+        epoch = visibilityEpoch;
+        last = Number.NaN;
+      }
       if (!frozen) {
         const delta = Number.isNaN(last) ? 0 : (now - last) / 1000;
         seconds += Math.min(MAX_STEP_SECONDS, Math.max(0, delta));

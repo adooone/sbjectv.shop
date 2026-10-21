@@ -743,7 +743,12 @@ export const createRingsRenderer = (
       const r1 = length / (opts.wavelength * u * TAU);
       const r2 = r1 / 3.1;
       const r3 = length / (opts.thicknessWavelength * u * TAU);
-      const spin = (direction * time * opts.flow) / r1;
+      // The spin is measured against the ring's resting length, not the
+      // current one: a ring that is morphing or collapsing changes length,
+      // and a spin tied to that would jump by (time × the change), racing
+      // the waves worse the longer the page has been open.
+      const restR1 = (lengths[i] ?? length) / (opts.wavelength * u * TAU);
+      const spin = (direction * time * opts.flow) / restR1;
       const ox = i * 7.3 + time * opts.drift;
       const oy = i * 3.7;
       // Outer and inner edges of the band; the band is filled as one polygon
